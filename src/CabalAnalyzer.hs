@@ -1,5 +1,5 @@
-module Main where
-    
+module CabalAnalyzer (analyzeCabalFileDefaultTarget) where
+
 import Distribution.Types.GenericPackageDescription
 import Distribution.PackageDescription.Parsec
 import Distribution.Verbosity
@@ -12,6 +12,10 @@ import Distribution.Types.PackageName
 
 import System.Environment
 import Data.List (find, intercalate)
+import Data.Maybe (isJust)
+import Data.Bits (xor)
+
+import VabalError
 
 
 baseToGHCMap :: [(Version, Version)]
@@ -46,41 +50,40 @@ baseToGHCMap = reverse
     , (mkVersion [4,12,0,0], mkVersion [8,6,2])
     ]
 
+-- TODO: Use binary search
 getNewestGHCFromVersionRange :: VersionRange -> Maybe Version
 getNewestGHCFromVersionRange vr = snd <$> find (versionInRange vr . fst) baseToGHCMap
     where versionInRange :: VersionRange -> Version -> Bool
           versionInRange = flip withinRange
 
-main :: IO ()
-main = getArgs >>= \args -> do
-    case args of
-        [] -> putStrLn "Error: specify cabal file path"
-        (filepath:_) -> main' filepath
 
+prettyPrintVersion :: Version -> String
+prettyPrintVersion ver = intercalate "." $ map show (versionNumbers ver)
 
-main' :: FilePath -> IO ()
-main' filepath = do
+analyzeCabalFileDefaultTarget :: FilePath -> IO String
+analyzeCabalFileDefaultTarget filepath = do
     res <- readGenericPackageDescription normal filepath
-    case condExecutables res of
-        [] -> error "No executable found"
-        (exe:_) -> do
-            let executable = exe
+    let canDetermineDefaultTarget = isJust (condLibrary res) `xor` (not . null $ condExecutables res)
 
-            let executableName = fst executable
-            let executableConstraints = condTreeConstraints (snd executable)
+    if not canDetermineDefaultTarget then
+        throwVabalError "Can't determine default target"
+    else do
+        let baseVersion = case condLibrary res of
+                            Just lib -> analyzeTarget lib
+                            Nothing  -> analyzeTarget (snd . head $ condExecutables res)
 
-            let baseVersion = simplifyVersionRange <$> getBaseConstraint executableConstraints
-            case baseVersion of
-                Nothing -> error "Error, no base package found"
-                Just baseVersion -> do
-                    case getNewestGHCFromVersionRange baseVersion of
-                        Nothing -> error "Error could not satisfy constraints"
-                        Just version ->
-                            putStrLn $ intercalate "." $ map show (versionNumbers version)
-
+        case baseVersion of
+            Nothing -> throwVabalError "Error, no base package found"
+            Just baseVersion -> do
+                case getNewestGHCFromVersionRange baseVersion of
+                    Nothing -> throwVabalError "Error, could not satisfy constraints"
+                    Just version -> return $ prettyPrintVersion version
 
 
+analyzeTarget :: CondTree ConfVar [Dependency] a -> Maybe VersionRange
+analyzeTarget deps = simplifyVersionRange <$> getBaseConstraint (condTreeConstraints deps)
 
 getBaseConstraint :: [Dependency] -> Maybe VersionRange
 getBaseConstraint deps = depVerRange <$> find isBase deps
     where isBase (Dependency packageName _) = unPackageName packageName == "base"
+

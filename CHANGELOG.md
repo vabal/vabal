@@ -1,4 +1,4 @@
-# Revision history for vabal-analyzer
+# Revision history for vabal
 
 ## 0.1.0.0 -- YYYY-mm-dd
 
