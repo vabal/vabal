@@ -47,3 +47,11 @@ That is it! You can now use `cabal` as you are accustomed to:
 > cabal new-build
 
 Now your project builds with the configured compiler and you will not get `base` version errors anymore!
+
+
+ Contributors
+--------------
+
+Francesco Ariis
+Francesco Magliocca
+Marco Umbrello
