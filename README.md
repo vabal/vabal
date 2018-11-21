@@ -16,6 +16,7 @@ Have you ever dreamt about treating the base package as all other packages? I.e.
 
 This program tries to solve these issues in the easiest way possible.
 It discovers which base version you need to build your package and automatically downloads the corresponding GHC compiler.
+The GHC compiler will be downloaded from https://downloads.haskell.org/~ghc/ mirror
 You don't need to manually manage different ghc versions by hand.
 
 Vabal tries to be the least intrusive possible, it tries to leverage all cabal's capabilities of working with different ghc versions,
