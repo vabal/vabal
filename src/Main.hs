@@ -91,8 +91,13 @@ vabalConfigure buildType args = do
     if ghcAlreadyInstalled then
         putStrLn "Already installed."
     else do
-        installGhcBinary buildType version outputDir
-        putStrLn "Ghc installed."
+        putStrLn $ "Do you want to download GHC " ++ version ++ "? [Yn]"
+        response <- getLine
+        case response of
+            "n" -> throwVabalError "Download aborted."
+            _   -> do
+                installGhcBinary buildType version outputDir
+                putStrLn "Ghc installed."
 
     createProcess (proc "cabal" ["new-configure", "-w", outputDir </> "bin" </> "ghc"])
     return ()
