@@ -21,8 +21,8 @@ import CabalAnalyzer
 
 withTemporaryDirectory :: (FilePath -> IO a) -> IO a
 withTemporaryDirectory action =
-    bracket (mkdtemp "ghc-binaries-XXXXXX")
-            removeDirectoryRecursive
+    bracket (mkdtemp "/tmp/ghc-binaries-XXXXXX")
+            (\_ -> return ())
             action
 
 
@@ -99,7 +99,7 @@ vabalConfigure buildType args = do
                 installGhcBinary buildType version outputDir
                 putStrLn "Ghc installed."
 
-    createProcess (proc "cabal" ["new-configure", "-w", outputDir </> "bin" </> "ghc"])
+    callProcess "cabal" ["new-configure", "-w", outputDir </> "bin" </> "ghc"]
     return ()
 
 
@@ -121,6 +121,7 @@ installGhcBinary buildType version outputDir = withTemporaryDirectory $ \tmpDir 
     withCurrentDirectory tmpDir $ do
         extractArchive outputFilename
         withCurrentDirectory ("ghc-" ++ version) $ do
+            putStrLn "Herez2"
             createDirectory outputDir
             installBinaries outputDir
 
@@ -131,8 +132,12 @@ downloadGhcBinaries buildType version = do
     let buildName = "ghc-" ++ version ++ "-" ++ buildType ++ ".tar.xz"
     let downloadUrl = baseUrl ++ "/" ++ buildName
 
-    manager <- TLS.newTlsManager
+    let managerSettings = TLS.tlsManagerSettings { N.managerResponseTimeout = N.responseTimeoutNone }
+
+    manager <- N.newManager managerSettings
     request <- N.parseRequest downloadUrl
+
+    putStrLn "Downloading GHC."
     response <- N.httpLbs request manager
 
     return (N.responseBody response)
@@ -140,12 +145,12 @@ downloadGhcBinaries buildType version = do
 
 extractArchive :: FilePath -> IO ()
 extractArchive archive = do
-    createProcess (proc "tar" ["-xJf", archive])
+    callProcess "tar" ["-xJf", archive]
     return ()
 
 installBinaries :: FilePath -> IO ()
 installBinaries outputDir = do
-    createProcess (proc "./configure" ["--prefix=" ++ outputDir])
-    createProcess (proc "make" ["install"])
+    callProcess "./configure" ["--prefix=" ++ outputDir]
+    callProcess "make" ["install"]
     return ()
 
