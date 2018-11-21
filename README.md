@@ -12,9 +12,9 @@ then it fetches the correct `ghc` for the build and configures the project to us
 ----------
 
 Have you ever upgraded GHC just to find all your haskell projects broken?
-  
+
 Have you ever wanted to try the new bleeding-edge GHC release, but also need older GHCs for your projects or programs (XMonad!)?
-  
+
 Have you ever dreamt about treating `base` as all other packages (i.e. change its version without much thought)?
 
 
@@ -53,5 +53,7 @@ Now your project builds with the configured compiler and you will not get `base`
 --------------
 
 Francesco Ariis
+
 Francesco Magliocca
+
 Marco Umbrello
