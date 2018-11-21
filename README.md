@@ -1,46 +1,49 @@
-Vabal - The Cabal Companion
----
-
-# What is it?
-This program analyzes the cabal file of a project and finds the base version needed to build it.
-Then it tries to get the necessary ghc version to build the project and configures the project to use it.
+# Vabal - The Cabal Companion
 
 
-# Rationale
-Have you ever upgraded ghc and broke all your haskell projects?
-Have you ever wanted to try the new bleeding edge GHC release, but you also need older GHC for your projects or programs (XMonad!)?
+ What is it?
+------------
+
+`vabal` analyzes the `.cabal` file of a project and finds the appropriate `base` version for it;
+then it fetches the correct `ghc` for the build and configures the project to use it.
 
 
-Have you ever dreamt about treating the base package as all other packages? I.e. change its version without much thought
+ Rationale
+----------
+
+Have you ever upgraded GHC just to find all your haskell projects broken?
+  
+Have you ever wanted to try the new bleeding-edge GHC release, but also need older GHCs for your projects or programs (XMonad!)?
+  
+Have you ever dreamt about treating `base` as all other packages (i.e. change its version without much thought)?
 
 
-This program tries to solve these issues in the easiest way possible.
-It discovers which base version you need to build your package and automatically downloads the corresponding GHC compiler.
-The GHC compiler will be downloaded from https://downloads.haskell.org/~ghc/ mirror
-You don't need to manually manage different ghc versions by hand.
+This program tries to solve these issues in the easiest possible way.
+It discovers which `base` version you need to build your package and automatically downloads the corresponding `ghc`.
+The GHC compiler will be downloaded from [the official mirror](https://downloads.haskell.org/~ghc/), checked and installed for you.
+No need to manually manage different ghc versions by hand!
 
-Vabal tries to be the least intrusive possible, it tries to leverage all cabal's capabilities of working with different ghc versions,
-and also doesn't force you in its paradigm.
-At its core vabal just edits the cabal.project.local file, which you can then remove or edit as you wish,
-so you're still in charge of what's happening
-
-
-# How to use it
+`vabal` tries to be as little intrusive as possible, leverages `cabal`'s capabilities of working with different GHC versions,
+and does *not* force you in its paradigm.
+At its core `vabal` just edits `cabal.project.local`, which you can then modify as you wish;
+you are always in charge of what is happening!
 
 
-First cd into your project directory
+ How to use it
+--------------
+
+First cd into your project directory:
+
 > $ cd my-project/
 
+Then run:
 
-Then run
 > vabal
 
+This will find out which GHC version is needed to build the project and then modify `cabal.project.local` to tell Cabal which compiler to use and where to find it.
 
-This will try to figure out which ghc version is needed to build the project and writes the cabal.project.local to tell cabal which ghc compiler to use
+That is it! You can now use `cabal` as you are accustomed to:
 
-
-Finally just keep using cabal as you are accustomed to.
-
-
-This will build your project using the configured compiler and you won't get base version errors anymore!
 > cabal new-build
+
+Now your project builds with the configured compiler and you will not get `base` version errors anymore!
