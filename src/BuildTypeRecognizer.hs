@@ -17,7 +17,7 @@ data SupportedArch = X86_64
 
 
 throwUnsupportedPlatform :: IO a
-throwUnsupportedPlatform = throwVabalError "Unsupported platform."
+throwUnsupportedPlatform = throwVabalErrorIO "Unsupported platform."
 
 getSupportedOS :: IO SupportedOS
 getSupportedOS = case os of
@@ -45,7 +45,7 @@ linuxGetNcursesVersion = do
     res <- waitForProcess procHandle
     case res of
         ExitSuccess -> return version
-        ExitFailure _ -> throwVabalError "Could not find ncurses infos."
+        ExitFailure _ -> throwVabalErrorIO "Could not find ncurses infos."
 
 -- Get the ghc build type to look for
 getBuildType :: SupportedOS -> SupportedArch -> IO String

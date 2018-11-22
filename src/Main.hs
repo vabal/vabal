@@ -6,7 +6,7 @@ import System.Directory
 import System.FilePath
 import System.Posix.Temp (mkdtemp)
 import System.Process
-import System.IO (hGetLine)
+import System.IO (hGetLine, hFlush, stdout)
 
 import qualified Network.HTTP.Client as N
 import qualified Network.HTTP.Client.TLS as TLS
@@ -63,7 +63,7 @@ vabalConfigure args = do
 
     cabalFilePath <- findCabalFile
 
-    version <- analyzeCabalFileDefaultTarget cabalFilePath
+    version <- analyzeCabalFileDefaultTarget [] cabalFilePath
 
     let outputDir = ghcInstallDir </> ("ghc-" ++ version)
 
@@ -72,17 +72,19 @@ vabalConfigure args = do
     ghcAlreadyInstalled <- doesDirectoryExist outputDir
 
     if ghcInPath then do
-        putStrLn "Already installed."
+        putStrLn "Using GHC in path."
         runCabalConfigure Nothing -- use ghc in path
     else if ghcAlreadyInstalled then do
         putStrLn "Already installed."
         runCabalConfigure (Just outputDir)
     else do
-        putStrLn $ "Do you want to download GHC " ++ version ++ "? [Y/n]:"
+        putStr $ "Do you want to download GHC " ++ version ++ "? [Y/n]:"
+        hFlush stdout
         response <- getLine
         case response of
             "n" -> putStrLn "Download aborted."
             _   -> do
+                putStrLn $ "Installing GHC in " ++ outputDir
                 installGhcBinary buildType version outputDir
                 putStrLn "Ghc installed."
                 runCabalConfigure (Just outputDir)
@@ -102,7 +104,7 @@ runCabalConfigure outputDir = do
     res <- runExternalProcess "cabal" args
     case res of
         ExitSuccess -> return ()
-        ExitFailure _ -> throwVabalError "Error while running cabal configure."
+        ExitFailure _ -> throwVabalErrorIO "Error while running cabal configure."
 
 findCabalFile :: IO FilePath
 findCabalFile = do
@@ -110,7 +112,7 @@ findCabalFile = do
     childs <- listDirectory currDir
     let cabalFiles = filter (\c -> takeExtension c == ".cabal") childs
     case cabalFiles of
-        [] -> throwVabalError "No cabal file found."
+        [] -> throwVabalErrorIO "No cabal file found."
         (cf:cfs) -> return cf
 
 installGhcBinary :: String -> String -> FilePath -> IO ()
@@ -140,19 +142,19 @@ extractArchive archive = do
     res <- runExternalProcess "tar" ["-xJf", archive]
     case res of
         ExitSuccess -> return ()
-        ExitFailure _ -> throwVabalError "Error while extracting ghc binary archive."
+        ExitFailure _ -> throwVabalErrorIO "Error while extracting ghc binary archive."
 
 installBinaries :: FilePath -> IO ()
 installBinaries outputDir = do
     putStrLn "Installing binaries."
     res1 <- runExternalProcess "./configure" ["--silent", "--prefix=" ++ outputDir]
     case res1 of
-        ExitFailure _ -> throwVabalError "Error while installing binaries"
+        ExitFailure _ -> throwVabalErrorIO "Error while installing binaries"
         ExitSuccess -> do
             res2 <- runExternalProcess "make" ["install", "--silent"]
             case res2 of
                 ExitSuccess -> return ()
-                ExitFailure _ -> throwVabalError "Error while installing binaries"
+                ExitFailure _ -> throwVabalErrorIO "Error while installing binaries"
 
 checkIfNeededGhcIsInPath :: String -> IO Bool
 checkIfNeededGhcIsInPath version = catch getGhcVersion noGhcFound

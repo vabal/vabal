@@ -8,7 +8,7 @@ import qualified Network.HTTP.Client as N
 import qualified Network.HTTP.Client.TLS as N
 import qualified Network.HTTP.Types.Header as N
 
-import System.IO (withFile, Handle, IOMode(WriteMode))
+import System.IO (hFlush, stdout, withFile, Handle, IOMode(WriteMode))
 
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8)
@@ -39,6 +39,7 @@ progress :: Int -> Int -> IO ()
 progress totalSize byteCount = do
     let perc = round $ (realToFrac byteCount / realToFrac totalSize) * 100
     putStr $ "Progress: " ++ show perc ++ "%\r"
+    hFlush stdout
     return ()
 
 downloadCountLoop :: Int -> IO ()
@@ -58,12 +59,14 @@ runDownloader :: String -> FilePath -> IO ()
 runDownloader url outputFilename = do
     manager <- N.newTlsManager
     request <- N.parseRequest url
+
     N.withResponse request manager $ \resp -> do
         let contentLength = getContentLength resp
 
         let progressReporter = maybe downloadCountLoop progress contentLength
 
-        putStrLn "Downloading..."
+        putStr "Progress: 0%\r"
+        hFlush stdout
         withFile outputFilename WriteMode $ \handle -> do
             for_ (downloader $ N.responseBody resp) $ \(byteCount, chunk) -> do
                 writeChunk handle chunk

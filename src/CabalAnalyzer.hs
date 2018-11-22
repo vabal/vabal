@@ -9,10 +9,12 @@ import Distribution.Types.UnqualComponentName
 import Distribution.Types.Dependency
 import Distribution.Types.VersionRange
 import Distribution.Types.PackageName
+import Distribution.Types.Condition
+import Distribution.System
 
 import System.Environment
 import Data.List (find, intercalate)
-import Data.Maybe (isJust)
+import Data.Maybe (isJust, listToMaybe, catMaybes)
 import Data.Bits (xor)
 
 import VabalError
@@ -60,30 +62,54 @@ getNewestGHCFromVersionRange vr = snd <$> find (versionInRange vr . fst) baseToG
 prettyPrintVersion :: Version -> String
 prettyPrintVersion ver = intercalate "." $ map show (versionNumbers ver)
 
-analyzeCabalFileDefaultTarget :: FilePath -> IO String
-analyzeCabalFileDefaultTarget filepath = do
+resolveConfVar :: [FlagName] -> ConfVar -> Bool
+resolveConfVar flagsSet (OS os) = buildOS == os
+resolveConfVar flagsSet (Arch arch) = buildArch == arch
+resolveConfVar flagsSet (Flag flag) = flag `elem` flagsSet
+resolveConfVar flagsSet (Impl compiler versionRange) = throwVabalError "Conditionals on compiler version are not supported yet inside cabal files."
+
+evalCondition :: [FlagName] -> Condition ConfVar -> Bool
+evalCondition flagsSet (Var cv) = resolveConfVar flagsSet cv
+evalCondition _ (Lit b)         = b
+evalCondition flagsSet (CNot cond) = not (evalCondition flagsSet cond)
+evalCondition flagsSet (COr cond1 cond2)  = evalCondition flagsSet cond1 || evalCondition flagsSet cond2
+evalCondition flagsSet (CAnd cond1 cond2) = evalCondition flagsSet cond1 && evalCondition flagsSet cond2
+
+
+analyzeCabalFileDefaultTarget :: [FlagName] -> FilePath -> IO String
+analyzeCabalFileDefaultTarget flags filepath = do
     res <- readGenericPackageDescription normal filepath
     let canDetermineDefaultTarget = isJust (condLibrary res) `xor` (not . null $ condExecutables res)
 
     if not canDetermineDefaultTarget then
-        throwVabalError "Can't determine default target"
+        throwVabalErrorIO "Can't determine default target"
     else do
         let baseVersion = case condLibrary res of
-                            Just lib -> analyzeTarget lib
-                            Nothing  -> analyzeTarget (snd . head $ condExecutables res)
+                            Just lib -> analyzeTarget flags lib
+                            Nothing  -> analyzeTarget flags (snd . head $ condExecutables res)
 
         case baseVersion of
-            Nothing -> throwVabalError "Error, no base package found"
+            Nothing -> throwVabalErrorIO "Error, no base package found"
             Just baseVersion -> do
                 case getNewestGHCFromVersionRange baseVersion of
-                    Nothing -> throwVabalError "Error, could not satisfy constraints"
+                    Nothing -> throwVabalErrorIO "Error, could not satisfy constraints"
                     Just version -> return $ prettyPrintVersion version
 
 
-analyzeTarget :: CondTree ConfVar [Dependency] a -> Maybe VersionRange
-analyzeTarget deps = simplifyVersionRange <$> getBaseConstraint (condTreeConstraints deps)
+-- Find the first base constraint resolving conditional statements
+analyzeTarget :: [FlagName] -> CondTree ConfVar [Dependency] a -> Maybe VersionRange
+analyzeTarget flagsSet deps = case getBaseConstraints (condTreeConstraints deps) of
+                                  (Just baseVersion) -> Just baseVersion
+                                  Nothing -> listToMaybe . catMaybes $ map (analyzeConditionals flagsSet) (condTreeComponents deps)
 
-getBaseConstraint :: [Dependency] -> Maybe VersionRange
-getBaseConstraint deps = depVerRange <$> find isBase deps
+    where analyzeConditionals :: [FlagName] -> CondBranch ConfVar [Dependency] a -> Maybe VersionRange
+          analyzeConditionals flagsSet branch = case evalCondition flagsSet (condBranchCondition branch) of
+                                                    True -> analyzeTarget flagsSet $ condBranchIfTrue branch
+                                                    False -> condBranchIfFalse branch >>= analyzeTarget flagsSet
+
+
+
+getBaseConstraints :: [Dependency] -> Maybe VersionRange
+getBaseConstraints deps = depVerRange <$> find isBase deps
     where isBase (Dependency packageName _) = unPackageName packageName == "base"
 

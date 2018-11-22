@@ -7,5 +7,8 @@ newtype VabalError = VabalError String
 
 instance Exception VabalError where
 
-throwVabalError :: String -> IO a
-throwVabalError = throwIO . VabalError
+throwVabalErrorIO :: String -> IO a
+throwVabalErrorIO = throwIO . VabalError
+
+throwVabalError :: String -> a
+throwVabalError = throw . VabalError
