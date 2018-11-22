@@ -17,8 +17,9 @@ cabal-version:       >=1.10
 
 executable vabal
   main-is:             Main.hs
-  other-modules:       CabalAnalyzer, VabalError, Downloader
-  -- other-extensions:
+  other-modules:       CabalAnalyzer, VabalError, Downloader,
+                       BuildTypeRecognizer
+-- other-extensions:
   build-depends:       base >=4.12 && <4.13,
                        directory,
                        list-t,

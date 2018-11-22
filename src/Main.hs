@@ -6,6 +6,7 @@ import System.Directory
 import System.FilePath
 import System.Posix.Temp (mkdtemp)
 import System.Process
+import System.IO (hGetLine)
 
 import qualified Network.HTTP.Client as N
 import qualified Network.HTTP.Client.TLS as TLS
@@ -24,14 +25,7 @@ import CabalAnalyzer
 import Data.List (find)
 
 import Downloader
-
-
-withTemporaryDirectory :: (FilePath -> IO a) -> IO a
-withTemporaryDirectory action =
-    bracket (mkdtemp "/tmp/ghc-binaries")
-            removeDirectoryRecursive
-            action
-
+import BuildTypeRecognizer
 
 runExternalProcess :: FilePath -> [String] -> IO ExitCode
 runExternalProcess bin args = do
@@ -39,54 +33,21 @@ runExternalProcess bin args = do
     (_, _, _, procHandle) <- createProcess processDescr
     waitForProcess procHandle
 
-
-data SupportedOS = Linux
-                 | Darwin
-
-data SupportedArch = X86_64
-                   | I386
-
-
-getSupportedOS :: Maybe SupportedOS
-getSupportedOS = case os of
-    "linux" -> Just Linux
-    "darwin" -> Just Darwin
-    _        -> Nothing
-
-getSupportedArch :: Maybe SupportedArch
-getSupportedArch = case arch of
-    "x86_64" -> Just X86_64
-    "i386"   -> Just I386
-    "i686"   -> Just I386
-    _        -> Nothing
-
-
--- Get the ghc build type to look for
-getBuildType :: SupportedOS -> SupportedArch -> Maybe String
-getBuildType Linux X86_64  = Just "x86_64-fedora27-linux"
-getBuildType Linux I386    = Just "i386-deb8-linux"
-getBuildType Darwin X86_64 = Just "x86_64-apple-darwin"
-getBuildType _ _           = Nothing
-
-
-detectGhcBuildType :: Maybe String
-detectGhcBuildType = do
-    os <- getSupportedOS
-    arch <- getSupportedArch
-    getBuildType os arch
-
-errorHandler :: SomeException -> IO ()
-errorHandler ex = putStrLn $ show ex
+withTemporaryDirectory :: (FilePath -> IO a) -> IO a
+withTemporaryDirectory action =
+    bracket (mkdtemp "/tmp/ghc-binaries")
+            removeDirectoryRecursive
+            action
 
 main :: IO ()
 main = do
     args <- getArgs
-    case detectGhcBuildType of
-        Nothing -> putStrLn "Unsupported platform."
-        Just buildType -> catch (vabalConfigure buildType args) errorHandler
+    let errorHandler :: SomeException -> IO ()
+        errorHandler ex = putStrLn $ show ex
+
+    catch (vabalConfigure args) errorHandler
 
 
--- TODO: Make these configurable
 
 -- Directory containing ghc installs
 ghcDirectory :: IO FilePath
@@ -94,8 +55,9 @@ ghcDirectory = do
     home <- getHomeDirectory
     return $ home </> ".ghc_install_dir"
 
-vabalConfigure :: String -> [String] -> IO ()
-vabalConfigure buildType args = do
+vabalConfigure :: [String] -> IO ()
+vabalConfigure args = do
+    buildType <- detectGhcBuildType
     ghcInstallDir <- ghcDirectory
     createDirectoryIfMissing True ghcInstallDir
 
@@ -105,11 +67,16 @@ vabalConfigure buildType args = do
 
     let outputDir = ghcInstallDir </> ("ghc-" ++ version)
 
+    ghcInPath <- return False -- checkIfNeededGhcIsInPath version
+
     ghcAlreadyInstalled <- doesDirectoryExist outputDir
 
-    if ghcAlreadyInstalled then do
+    if ghcInPath then do
         putStrLn "Already installed."
-        runCabalConfigure outputDir
+        runCabalConfigure Nothing -- use ghc in path
+    else if ghcAlreadyInstalled then do
+        putStrLn "Already installed."
+        runCabalConfigure (Just outputDir)
     else do
         putStrLn $ "Do you want to download GHC " ++ version ++ "? [Y/n]:"
         response <- getLine
@@ -118,16 +85,21 @@ vabalConfigure buildType args = do
             _   -> do
                 installGhcBinary buildType version outputDir
                 putStrLn "Ghc installed."
-                runCabalConfigure outputDir
+                runCabalConfigure (Just outputDir)
 
     return ()
 
 
 -- Run cabal new-configure with the given compiler version
-runCabalConfigure :: FilePath -> IO ()
+-- If The filepath is Nothing, then use the ghc in path
+runCabalConfigure :: Maybe FilePath -> IO ()
 runCabalConfigure outputDir = do
     putStrLn "Running cabal new-configure."
-    res <- runExternalProcess "cabal" ["new-configure", "-w", outputDir </> "bin" </> "ghc"]
+
+    let args = case outputDir of
+            Nothing        -> ["new-configure"]
+            Just outputDir -> ["new-configure", "-w", outputDir </> "bin" </> "ghc"]
+    res <- runExternalProcess "cabal" args
     case res of
         ExitSuccess -> return ()
         ExitFailure _ -> throwVabalError "Error while running cabal configure."
@@ -149,7 +121,6 @@ installGhcBinary buildType version outputDir = withTemporaryDirectory $ \tmpDir 
     withCurrentDirectory tmpDir $ do
         extractArchive outputFilename
         withCurrentDirectory ("ghc-" ++ version) $ do
-            createDirectory outputDir
             installBinaries outputDir
 
 
@@ -182,4 +153,17 @@ installBinaries outputDir = do
             case res2 of
                 ExitSuccess -> return ()
                 ExitFailure _ -> throwVabalError "Error while installing binaries"
+
+checkIfNeededGhcIsInPath :: String -> IO Bool
+checkIfNeededGhcIsInPath version = catch getGhcVersion noGhcFound
+    where noGhcFound :: SomeException -> IO Bool
+          noGhcFound _ = return False
+          getGhcVersion = do
+                let processDescr = (proc "ghc" ["--numeric-version"])
+                                 { std_out = CreatePipe
+                                 }
+
+                (_, Just outHandle, _, procHandle) <- createProcess processDescr
+                ghcVersion <- hGetLine outHandle
+                return (version == ghcVersion)
 

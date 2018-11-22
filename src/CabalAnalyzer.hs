@@ -17,7 +17,7 @@ import Data.Bits (xor)
 
 import VabalError
 
-
+-- TODO: put this table in a separate external file
 baseToGHCMap :: [(Version, Version)]
 baseToGHCMap = reverse
     [ (mkVersion [4,0,0,0], mkVersion [6,10,1])

@@ -4,19 +4,14 @@
  What is it?
 ------------
 
-`vabal` analyzes the `.cabal` file of a project and finds the appropriate `base` version for it;
-then it fetches the correct `ghc` for the build and configures the project to use it.
-
-
- Rationale
-----------
+Have you ever wanted to try the new bleeding-edge GHC release, but also need older GHCs for your projects or programs (XMonad!)?
 
 Have you ever upgraded GHC just to find all your haskell projects broken?
 
-Have you ever wanted to try the new bleeding-edge GHC release, but also need older GHCs for your projects or programs (XMonad!)?
-
 Have you ever dreamt about treating `base` as all other packages (i.e. change its version without much thought)?
 
+`vabal` analyzes the `.cabal` file of a project and tries to determine a `ghc` version compatible with the constraints imposed on `base` 
+in the `.cabal` file; then it fetches the correct `ghc` for the build and configures the project to use it.
 
 This program tries to solve these issues in the easiest possible way.
 It discovers which `base` version you need to build your package and automatically downloads the corresponding `ghc`.
