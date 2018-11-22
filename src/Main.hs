@@ -53,7 +53,7 @@ main = do
 ghcDirectory :: IO FilePath
 ghcDirectory = do
     home <- getHomeDirectory
-    return $ home </> ".ghc_install_dir"
+    return $ home </> ".vabal"
 
 vabalConfigure :: [String] -> IO ()
 vabalConfigure args = do
@@ -67,7 +67,7 @@ vabalConfigure args = do
 
     let outputDir = ghcInstallDir </> ("ghc-" ++ version)
 
-    ghcInPath <- return False -- checkIfNeededGhcIsInPath version
+    ghcInPath <- checkIfNeededGhcIsInPath version
 
     ghcAlreadyInstalled <- doesDirectoryExist outputDir
 
@@ -84,6 +84,7 @@ vabalConfigure args = do
         case response of
             "n" -> putStrLn "Download aborted."
             _   -> do
+                putStrLn $ "Using GHC build type: " ++ buildType
                 putStrLn $ "Installing GHC in " ++ outputDir
                 installGhcBinary buildType version outputDir
                 putStrLn "Ghc installed."
