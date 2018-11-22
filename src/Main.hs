@@ -9,20 +9,26 @@ import System.Process
 
 import qualified Network.HTTP.Client as N
 import qualified Network.HTTP.Client.TLS as TLS
+import qualified Network.HTTP.Types.Header as N
 
-import qualified Data.ByteString.Lazy as B
+import qualified Data.ByteString.Lazy as BL
+import qualified Data.ByteString.Builder as Builder
+import qualified Data.ByteString as B
 import Control.Exception
 
 import VabalError
 
 import CabalAnalyzer
 
+import Data.List (find)
+
+import Downloader
 
 
 withTemporaryDirectory :: (FilePath -> IO a) -> IO a
 withTemporaryDirectory action =
-    bracket (mkdtemp "/tmp/ghc-binaries-XXXXXX")
-            (\_ -> return ())
+    bracket (mkdtemp "/tmp/ghc-binaries")
+            removeDirectoryRecursive
             action
 
 
@@ -91,7 +97,7 @@ vabalConfigure buildType args = do
     if ghcAlreadyInstalled then
         putStrLn "Already installed."
     else do
-        putStrLn $ "Do you want to download GHC " ++ version ++ "? [Yn]"
+        putStr $ "Do you want to download GHC " ++ version ++ "? [Y/n]:"
         response <- getLine
         case response of
             "n" -> throwVabalError "Download aborted."
@@ -114,33 +120,24 @@ findCabalFile = do
 
 installGhcBinary :: String -> String -> FilePath -> IO ()
 installGhcBinary buildType version outputDir = withTemporaryDirectory $ \tmpDir -> do
-    binaries <- downloadGhcBinaries buildType version
     let outputFilename = tmpDir </> "ghc.tar.xz"
-    B.writeFile outputFilename binaries
+    downloadGhcBinaries buildType version outputFilename
 
     withCurrentDirectory tmpDir $ do
         extractArchive outputFilename
         withCurrentDirectory ("ghc-" ++ version) $ do
-            putStrLn "Herez2"
             createDirectory outputDir
             installBinaries outputDir
 
 
-downloadGhcBinaries :: String -> String -> IO B.ByteString
-downloadGhcBinaries buildType version = do
+downloadGhcBinaries :: String -> String -> FilePath -> IO ()
+downloadGhcBinaries buildType version outputFilename = do
     let baseUrl = "https://downloads.haskell.org/~ghc/" ++ version
     let buildName = "ghc-" ++ version ++ "-" ++ buildType ++ ".tar.xz"
     let downloadUrl = baseUrl ++ "/" ++ buildName
 
-    let managerSettings = TLS.tlsManagerSettings { N.managerResponseTimeout = N.responseTimeoutNone }
-
-    manager <- N.newManager managerSettings
-    request <- N.parseRequest downloadUrl
-
     putStrLn "Downloading GHC."
-    response <- N.httpLbs request manager
-
-    return (N.responseBody response)
+    runDownloader downloadUrl outputFilename
 
 
 extractArchive :: FilePath -> IO ()
