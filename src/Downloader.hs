@@ -39,6 +39,7 @@ progress :: Int -> Int -> IO ()
 progress totalSize byteCount = do
     let perc = round $ (realToFrac byteCount / realToFrac totalSize) * 100
     putStr $ "Progress: " ++ show perc ++ "%\r"
+    return ()
 
 downloadCountLoop :: Int -> IO ()
 downloadCountLoop byteCount = return ()

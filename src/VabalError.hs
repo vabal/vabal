@@ -9,4 +9,3 @@ instance Exception VabalError where
 
 throwVabalError :: String -> IO a
 throwVabalError = throwIO . VabalError
-

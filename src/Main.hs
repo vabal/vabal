@@ -15,6 +15,7 @@ import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString as B
 import Control.Exception
+import System.Exit
 
 import VabalError
 
@@ -30,6 +31,13 @@ withTemporaryDirectory action =
     bracket (mkdtemp "/tmp/ghc-binaries")
             removeDirectoryRecursive
             action
+
+
+runExternalProcess :: FilePath -> [String] -> IO ExitCode
+runExternalProcess bin args = do
+    let processDescr = (proc bin args)
+    (_, _, _, procHandle) <- createProcess processDescr
+    waitForProcess procHandle
 
 
 data SupportedOS = Linux
@@ -67,10 +75,15 @@ detectGhcBuildType = do
     arch <- getSupportedArch
     getBuildType os arch
 
+errorHandler :: SomeException -> IO ()
+errorHandler ex = putStrLn $ show ex
+
 main :: IO ()
-main = getArgs >>= \args -> case detectGhcBuildType of
-                                Nothing -> putStrLn "Unsupported platform."
-                                Just buildType -> vabalConfigure buildType args
+main = do
+    args <- getArgs
+    case detectGhcBuildType of
+        Nothing -> putStrLn "Unsupported platform."
+        Just buildType -> catch (vabalConfigure buildType args) errorHandler
 
 
 -- TODO: Make these configurable
@@ -94,20 +107,30 @@ vabalConfigure buildType args = do
 
     ghcAlreadyInstalled <- doesDirectoryExist outputDir
 
-    if ghcAlreadyInstalled then
+    if ghcAlreadyInstalled then do
         putStrLn "Already installed."
+        runCabalConfigure outputDir
     else do
-        putStr $ "Do you want to download GHC " ++ version ++ "? [Y/n]:"
+        putStrLn $ "Do you want to download GHC " ++ version ++ "? [Y/n]:"
         response <- getLine
         case response of
-            "n" -> throwVabalError "Download aborted."
+            "n" -> putStrLn "Download aborted."
             _   -> do
                 installGhcBinary buildType version outputDir
                 putStrLn "Ghc installed."
+                runCabalConfigure outputDir
 
-    callProcess "cabal" ["new-configure", "-w", outputDir </> "bin" </> "ghc"]
     return ()
 
+
+-- Run cabal new-configure with the given compiler version
+runCabalConfigure :: FilePath -> IO ()
+runCabalConfigure outputDir = do
+    putStrLn "Running cabal new-configure."
+    res <- runExternalProcess "cabal" ["new-configure", "-w", outputDir </> "bin" </> "ghc"]
+    case res of
+        ExitSuccess -> return ()
+        ExitFailure _ -> throwVabalError "Error while running cabal configure."
 
 findCabalFile :: IO FilePath
 findCabalFile = do
@@ -142,12 +165,21 @@ downloadGhcBinaries buildType version outputFilename = do
 
 extractArchive :: FilePath -> IO ()
 extractArchive archive = do
-    callProcess "tar" ["-xJf", archive]
-    return ()
+    putStrLn "Extracting GHC binaries archive."
+    res <- runExternalProcess "tar" ["-xJf", archive]
+    case res of
+        ExitSuccess -> return ()
+        ExitFailure _ -> throwVabalError "Error while extracting ghc binary archive."
 
 installBinaries :: FilePath -> IO ()
 installBinaries outputDir = do
-    callProcess "./configure" ["--prefix=" ++ outputDir]
-    callProcess "make" ["install"]
-    return ()
+    putStrLn "Installing binaries."
+    res1 <- runExternalProcess "./configure" ["--silent", "--prefix=" ++ outputDir]
+    case res1 of
+        ExitFailure _ -> throwVabalError "Error while installing binaries"
+        ExitSuccess -> do
+            res2 <- runExternalProcess "make" ["install", "--silent"]
+            case res2 of
+                ExitSuccess -> return ()
+                ExitFailure _ -> throwVabalError "Error while installing binaries"
 
