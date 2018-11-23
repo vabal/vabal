@@ -23,9 +23,11 @@ import VabalError
 import CabalAnalyzer
 
 import Data.List (find)
+import Control.Monad (when)
 
 import Downloader
 import BuildTypeRecognizer
+import GHCBinaryIntegrityVerifier
 
 runExternalProcess :: FilePath -> [String] -> IO ExitCode
 runExternalProcess bin args = do
@@ -39,6 +41,9 @@ withTemporaryDirectory action =
             removeDirectoryRecursive
             action
 
+withExceptionHandler :: Exception e => (e -> IO a) -> IO a -> IO a
+withExceptionHandler = flip catch
+
 main :: IO ()
 main = do
     args <- getArgs
@@ -46,6 +51,7 @@ main = do
         errorHandler ex = putStrLn $ show ex
 
     catch (vabalConfigure args) errorHandler
+    return ()
 
 
 
@@ -84,10 +90,25 @@ vabalConfigure args = do
         case response of
             "n" -> putStrLn "Download aborted."
             _   -> do
-                putStrLn $ "Using GHC build type: " ++ buildType
-                putStrLn $ "Installing GHC in " ++ outputDir
-                installGhcBinary buildType version outputDir
-                putStrLn "Ghc installed."
+
+                let onInstallError :: SomeException -> IO ()
+                    onInstallError ex = do
+                        -- If ~/.vabal/ghc-version was already created,
+                        -- but the compiler installation was unsuccessful,
+                        -- remove the directory
+                        dirCreated <- doesDirectoryExist outputDir
+                        when dirCreated $ do
+                            removeDirectoryRecursive outputDir
+                        -- Rethrow to let the top level handler deal with this
+                        throwIO ex
+
+                -- withExceptionHandler = flip catch
+                withExceptionHandler onInstallError $ do
+                    putStrLn $ "Using GHC build type: " ++ buildType
+                    putStrLn $ "Installing GHC in " ++ outputDir
+                    installGhcBinary buildType version outputDir
+                    putStrLn "Ghc installed."
+
                 runCabalConfigure (Just outputDir)
 
     return ()
@@ -120,6 +141,7 @@ installGhcBinary :: String -> String -> FilePath -> IO ()
 installGhcBinary buildType version outputDir = withTemporaryDirectory $ \tmpDir -> do
     let outputFilename = tmpDir </> "ghc.tar.xz"
     downloadGhcBinaries buildType version outputFilename
+    verifyDownloadedBinary tmpDir outputFilename version buildType
 
     withCurrentDirectory tmpDir $ do
         extractArchive outputFilename
