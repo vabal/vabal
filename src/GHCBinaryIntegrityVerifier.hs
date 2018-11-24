@@ -1,9 +1,10 @@
+{-# LANGUAGE TemplateHaskell #-}
 module GHCBinaryIntegrityVerifier (verifyDownloadedBinary) where
-
+    
 import System.IO.Unsafe
+import Data.Either (isRight)
 import qualified Data.Conduit as DC
 import Data.Conduit ((.|))
-import qualified Data.Conduit.Binary as CB
 import qualified Data.Conduit.List as CL
 import Data.Binary (get)
 import Data.Conduit.Serialization.Binary (conduitGet)
@@ -33,6 +34,8 @@ import qualified Network.HTTP.Client as N
 import qualified Network.HTTP.Client.TLS as N
 import qualified Network.HTTP.Types as N
 
+import Data.FileEmbed
+
 import System.FilePath
 
 import VabalError
@@ -41,9 +44,13 @@ import Debug.Trace
 
 import InstallationContext
 
-verifySignature :: FilePath -> BS.ByteString -> B.ByteString -> IO Bool
+
+ghcSignaturePublicKey :: BS.ByteString
+ghcSignaturePublicKey = $(embedFile "ghcSignaturePublicKey")
+
+verifySignature :: BS.ByteString -> BS.ByteString -> B.ByteString -> IO Bool
 verifySignature pubKey sig file = do
-    kr <- DC.runConduitRes $ CB.sourceFile pubKey
+    kr <- DC.runConduitRes $ DC.yield pubKey
                           .| conduitGet get
                           .| conduitToTKs
                           .| sinkKeyringMap
@@ -53,19 +60,17 @@ verifySignature pubKey sig file = do
                                 .| conduitDecompress
                                 .| CL.consume
 
-    -- Get first signature
+    -- Take only signature packets
     let isSignature (SignaturePkt _) = True
         isSignature _                = False
 
-    let sig = find isSignature sigData
+    let signatures = filter isSignature sigData
+    -- Try validating against any of the signatures,
+    -- stopping when we find one that succeeds
+    -- (this is guaranteed by lazy semantics of any)
+    let res = any (\sig -> isRight $ verifyAgainstKeyring kr sig Nothing file) signatures
 
-    case sig of
-        Nothing -> return False
-        Just signature -> do
-            let res = verifyAgainstKeyring kr signature Nothing file
-            case res of
-                Left err -> return False
-                Right ver -> return True
+    return res
 
 
 getBinaryHash :: FilePath -> IO BS.ByteString
@@ -89,43 +94,73 @@ extractSha256Sum shaSums ghcBinaryName = do
     return $ T.encodeUtf8 binarySha256Sum
 
 
+tryFindResource :: N.Manager -> String -> IO (Maybe B.ByteString)
+tryFindResource manager url = do
+    request <- N.parseRequest url
+
+    response <- N.httpLbs request manager
+    case N.responseStatus response == N.status200 of
+        False -> return Nothing
+        True -> return . Just $ N.responseBody response
+
+verifySha256Sum :: FilePath -> String -> B.ByteString -> B.ByteString -> IO ()
+verifySha256Sum ghcBinaryFilePath ghcBinaryName shasums shasumsSignature = do
+    res <- verifySignature ghcSignaturePublicKey
+                           (B.toStrict shasumsSignature)
+                           shasums
+    if not res then
+        throwVabalErrorIO "Invalid SHA256SUMS, PGP Verification Failed"
+    else do
+        case extractSha256Sum shasums ghcBinaryName of
+            Nothing -> throwVabalErrorIO "Can't find checksum for downloaded binary."
+            Just shasum -> do
+                hash <- getBinaryHash ghcBinaryFilePath
+                case shasum == hash of
+                    True -> putStrLn "Binary integrity successfully verified."
+                    False -> throwVabalErrorIO "The downloaded binary is not valid."
+
+verifyUsingBinarySignature :: FilePath -> B.ByteString -> IO ()
+verifyUsingBinarySignature ghcBinaryFilePath binarySignature = do
+    binaryData <- B.readFile ghcBinaryFilePath
+    res <- verifySignature ghcSignaturePublicKey
+                           (B.toStrict binarySignature)
+                           binaryData
+    if res then
+        putStrLn "Binary integrity successfully verified."
+    else
+        throwVabalErrorIO "The downloaded binary is not valid."
+
 verifyDownloadedBinary :: InstallationContext -> IO ()
 verifyDownloadedBinary ctx = do
     let ghcBinaryName = "ghc-" ++ version ctx ++ "-" ++ buildType ctx ++ ".tar.xz"
 
     let baseUrl = "https://downloads.haskell.org/~ghc/" ++ version ctx
 
-    let downloadUrl = baseUrl ++ "/" ++ "SHA256SUMS"
-    let sigDownloadUrl = downloadUrl ++ ".sig"
+    let ghcBinarySigUrl = baseUrl ++ "/" ++ ghcBinaryName ++ ".sig"
+
+    let shasumsUrl = baseUrl ++ "/" ++ "SHA256SUMS"
+    let shasumsSigUrl = shasumsUrl ++ ".sig"
 
     let manager = netManager ctx
-    request <- N.parseRequest downloadUrl
 
-    shasumsResponse <- N.httpLbs request manager
-    case N.responseStatus shasumsResponse == N.status200 of
-        False -> putStrLn "Warning: It was no shasums file to use to verify integrity."
-        True -> do
-            signatureRequest <- N.parseRequest sigDownloadUrl
-
-            let shasums = N.responseBody shasumsResponse
-
-            shasumsSignatureResponse <- N.httpLbs signatureRequest manager
-            case N.responseStatus shasumsSignatureResponse == N.status200 of
-                False -> putStrLn "Warning: No signature for the shasums file found to validate the shasums."
-                True -> do
-                    let shasumsSignature = N.responseBody shasumsSignatureResponse
-                    res <- verifySignature "/home/francesco/Projects/vabal/ghcSignaturePublicKey"
-                                           (B.toStrict shasumsSignature)
-                                           shasums
-
-                    if not res then
-                        throwVabalErrorIO "Invalid SHA256SUMS, PGP Verification Failed"
-                    else do
-                        case extractSha256Sum shasums ghcBinaryName of
-                            Nothing -> return () -- throwVabalErrorIO "Can't find binary checksum"
-                            Just shasum -> do
-                                hash <- getBinaryHash $ ghcArchiveFilename ctx
-                                case shasum == hash of
-                                    True -> putStrLn "Binary integrity successfully verified."
-                                    False -> throwVabalErrorIO "The downloaded binary is not valid."
+    -- First try looking for a signature of the binary file
+    -- If not found try with the SHA256SUMS file
+    -- Finally desist and don't verify
+    binarySig <- tryFindResource manager ghcBinarySigUrl
+    case binarySig of
+        Just binarySig -> verifyUsingBinarySignature (ghcArchiveFilename ctx) binarySig
+        Nothing -> do
+            putStrLn "Signature for binary file not found. Trying with SHA256SUMS file."
+            shasums <- tryFindResource manager shasumsUrl
+            case shasums of
+                Nothing -> putStrLn "Warning: There was no SHA256SUMS file to use to verify integrity."
+                Just shasums -> do
+                    shasumsSignature <- tryFindResource manager shasumsSigUrl
+                    case shasumsSignature of
+                        Nothing -> putStrLn "Warning: No signature for the SHA256SUMS file found."
+                        Just shasumsSignature -> do
+                            verifySha256Sum (ghcArchiveFilename ctx)
+                                            ghcBinaryName
+                                            shasums
+                                            shasumsSignature
 
