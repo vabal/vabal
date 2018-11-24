@@ -21,7 +21,8 @@ executable vabal
                        BuildTypeRecognizer, GHCBinaryIntegrityVerifier,
                        GHCInstallation, InstallationContext, ProcessUtils
 -- other-extensions:
-  build-depends:       base >4.10 && <4.12,
+  build-depends:       base >=4.11 && <4.12,
+                       -- ^ GHC == 8.4.*
                        directory,
                        list-t,
                        filepath,
