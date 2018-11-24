@@ -18,13 +18,15 @@ cabal-version:       >=1.10
 executable vabal
   main-is:             Main.hs
   other-modules:       CabalAnalyzer, VabalError, Downloader,
-                       BuildTypeRecognizer, GHCBinaryIntegrityVerifier
+                       BuildTypeRecognizer, GHCBinaryIntegrityVerifier,
+                       GHCInstallation
 -- other-extensions:
   build-depends:       base >4.10 && <4.12,
                        directory,
                        list-t,
                        filepath,
                        unix,
+                       mtl,
                        process,
                        bytestring,
                        base16-bytestring,

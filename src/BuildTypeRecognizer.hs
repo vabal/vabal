@@ -54,7 +54,7 @@ getBuildType Darwin X86_64 = return "x86_64-apple-darwin"
 getBuildType Linux X86_64  = do
     version <- linuxGetNcursesVersion
     if version >= "6" then
-        return "x86_64-fedora27-linux"
+        return "x86_64-unknown-linux"
     else
         return "x86_64-deb8-linux"
 

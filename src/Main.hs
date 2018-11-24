@@ -19,6 +19,7 @@ import Control.Exception
 import System.Exit
 
 import VabalError
+import GHCInstallation
 
 import CabalAnalyzer
 
@@ -28,18 +29,7 @@ import Control.Monad (when)
 import Downloader
 import BuildTypeRecognizer
 import GHCBinaryIntegrityVerifier
-
-runExternalProcess :: FilePath -> [String] -> IO ExitCode
-runExternalProcess bin args = do
-    let processDescr = (proc bin args)
-    (_, _, _, procHandle) <- createProcess processDescr
-    waitForProcess procHandle
-
-withTemporaryDirectory :: (FilePath -> IO a) -> IO a
-withTemporaryDirectory action =
-    bracket (mkdtemp "/tmp/ghc-binaries")
-            removeDirectoryRecursive
-            action
+import ProcessUtils
 
 withExceptionHandler :: Exception e => (e -> IO a) -> IO a -> IO a
 withExceptionHandler = flip catch
@@ -52,8 +42,6 @@ main = do
 
     catch (vabalConfigure args) errorHandler
     return ()
-
-
 
 -- Directory containing ghc installs
 ghcDirectory :: IO FilePath
@@ -136,48 +124,6 @@ findCabalFile = do
     case cabalFiles of
         [] -> throwVabalErrorIO "No cabal file found."
         (cf:cfs) -> return cf
-
-installGhcBinary :: String -> String -> FilePath -> IO ()
-installGhcBinary buildType version outputDir = withTemporaryDirectory $ \tmpDir -> do
-    let outputFilename = tmpDir </> "ghc.tar.xz"
-    downloadGhcBinaries buildType version outputFilename
-    verifyDownloadedBinary tmpDir outputFilename version buildType
-
-    withCurrentDirectory tmpDir $ do
-        extractArchive outputFilename
-        withCurrentDirectory ("ghc-" ++ version) $ do
-            installBinaries outputDir
-
-
-downloadGhcBinaries :: String -> String -> FilePath -> IO ()
-downloadGhcBinaries buildType version outputFilename = do
-    let baseUrl = "https://downloads.haskell.org/~ghc/" ++ version
-    let buildName = "ghc-" ++ version ++ "-" ++ buildType ++ ".tar.xz"
-    let downloadUrl = baseUrl ++ "/" ++ buildName
-
-    putStrLn "Downloading GHC."
-    runDownloader downloadUrl outputFilename
-
-
-extractArchive :: FilePath -> IO ()
-extractArchive archive = do
-    putStrLn "Extracting GHC binaries archive."
-    res <- runExternalProcess "tar" ["-xJf", archive]
-    case res of
-        ExitSuccess -> return ()
-        ExitFailure _ -> throwVabalErrorIO "Error while extracting ghc binary archive."
-
-installBinaries :: FilePath -> IO ()
-installBinaries outputDir = do
-    putStrLn "Installing binaries."
-    res1 <- runExternalProcess "./configure" ["--silent", "--prefix=" ++ outputDir]
-    case res1 of
-        ExitFailure _ -> throwVabalErrorIO "Error while installing binaries"
-        ExitSuccess -> do
-            res2 <- runExternalProcess "make" ["install", "--silent"]
-            case res2 of
-                ExitSuccess -> return ()
-                ExitFailure _ -> throwVabalErrorIO "Error while installing binaries"
 
 checkIfNeededGhcIsInPath :: String -> IO Bool
 checkIfNeededGhcIsInPath version = catch getGhcVersion noGhcFound

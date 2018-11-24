@@ -58,9 +58,9 @@ getContentLength resp =
 for_ :: Monad m => ListT m a -> (a -> m ()) -> m ()
 for_ = flip traverse_
 
-runDownloader :: String -> FilePath -> IO ()
-runDownloader url outputFilename = do
-    manager <- N.newTlsManager
+runDownloader :: String -> N.Manager -> FilePath -> IO ()
+runDownloader url manager outputFilename = do
+    print url
     request <- N.parseRequest url
 
     N.withResponse request manager $ \resp -> do

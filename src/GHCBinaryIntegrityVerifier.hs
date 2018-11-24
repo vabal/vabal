@@ -39,6 +39,8 @@ import VabalError
 
 import Debug.Trace
 
+import InstallationContext
+
 verifySignature :: FilePath -> BS.ByteString -> B.ByteString -> IO Bool
 verifySignature pubKey sig file = do
     kr <- DC.runConduitRes $ CB.sourceFile pubKey
@@ -87,16 +89,16 @@ extractSha256Sum shaSums ghcBinaryName = do
     return $ T.encodeUtf8 binarySha256Sum
 
 
-verifyDownloadedBinary :: FilePath -> FilePath -> String -> String -> IO ()
-verifyDownloadedBinary outputDir binaryPath ghcVersion ghcBuildType = do
-    let ghcBinaryName = "ghc-" ++ ghcVersion ++ "-" ++ ghcBuildType ++ ".tar.xz"
+verifyDownloadedBinary :: InstallationContext -> IO ()
+verifyDownloadedBinary ctx = do
+    let ghcBinaryName = "ghc-" ++ version ctx ++ "-" ++ buildType ctx ++ ".tar.xz"
 
-    let baseUrl = "https://downloads.haskell.org/~ghc/" ++ ghcVersion
+    let baseUrl = "https://downloads.haskell.org/~ghc/" ++ version ctx
 
     let downloadUrl = baseUrl ++ "/" ++ "SHA256SUMS"
     let sigDownloadUrl = downloadUrl ++ ".sig"
 
-    manager <- N.newTlsManager
+    let manager = netManager ctx
     request <- N.parseRequest downloadUrl
 
     shasumsResponse <- N.httpLbs request manager
@@ -112,8 +114,6 @@ verifyDownloadedBinary outputDir binaryPath ghcVersion ghcBuildType = do
                 False -> putStrLn "Warning: No signature for the shasums file found to validate the shasums."
                 True -> do
                     let shasumsSignature = N.responseBody shasumsSignatureResponse
-                    B.writeFile (outputDir </> "shasums") shasums
-                    B.writeFile (outputDir </> "shasums.sig") shasumsSignature
                     res <- verifySignature "/home/francesco/Projects/vabal/ghcSignaturePublicKey"
                                            (B.toStrict shasumsSignature)
                                            shasums
@@ -122,9 +122,9 @@ verifyDownloadedBinary outputDir binaryPath ghcVersion ghcBuildType = do
                         throwVabalErrorIO "Invalid SHA256SUMS, PGP Verification Failed"
                     else do
                         case extractSha256Sum shasums ghcBinaryName of
-                            Nothing -> throwVabalErrorIO "Can't find binary checksum"
+                            Nothing -> return () -- throwVabalErrorIO "Can't find binary checksum"
                             Just shasum -> do
-                                hash <- getBinaryHash binaryPath
+                                hash <- getBinaryHash $ ghcArchiveFilename ctx
                                 case shasum == hash of
                                     True -> putStrLn "Binary integrity successfully verified."
                                     False -> throwVabalErrorIO "The downloaded binary is not valid."
