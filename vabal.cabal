@@ -12,7 +12,7 @@ maintainer:          franciman12@gmail.com
 -- copyright:
 -- category:
 build-type:          Simple
-extra-source-files:  CHANGELOG.md, ghcSignaturePublicKey
+extra-source-files:  CHANGELOG.md, ghcSignaturePublicKey, cabal.project
 cabal-version:       >=1.10
 
 executable vabal
@@ -21,8 +21,8 @@ executable vabal
                        BuildTypeRecognizer, GHCBinaryIntegrityVerifier,
                        GHCInstallation, InstallationContext, ProcessUtils
 -- other-extensions:
-  build-depends:       base >=4.11 && <4.12,
-                       -- ^ GHC == 8.4.*
+  build-depends:       base >=4.11 && <4.13,
+                       -- ^ GHC >= 8.4.1 && <= 8.6.2
                        directory,
                        containers,
                        list-t,
@@ -37,7 +37,7 @@ executable vabal
                        http-types,
                        http-client,
                        http-client-tls,
-                       hOpenPGP,
+                       hOpenPGP >=2.7.4 && <2.7.5,
                        conduit,
                        conduit-extra,
                        binary-conduit,
