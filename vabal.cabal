@@ -24,6 +24,7 @@ executable vabal
   build-depends:       base >=4.11 && <4.12,
                        -- ^ GHC == 8.4.*
                        directory,
+                       containers,
                        list-t,
                        filepath,
                        unix,
@@ -42,7 +43,7 @@ executable vabal
                        binary-conduit,
                        binary,
                        cryptohash-sha256,
-                       file-embed
-
+                       file-embed,
+                       cabal-plan
   hs-source-dirs:      src/
   default-language:    Haskell2010

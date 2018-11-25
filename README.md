@@ -10,11 +10,10 @@ Have you ever upgraded GHC just to find all your haskell projects broken?
 
 Have you ever dreamt about treating `base` as all other packages (i.e. change its version without much thought)?
 
-`vabal` analyzes the `.cabal` file of a project and tries to determine a `ghc` version compatible with the constraints imposed on `base` 
-in the `.cabal` file; then it fetches the correct `ghc` for the build and configures the project to use it.
+`vabal` tries to determine a `ghc` version that makes compilation of the package possible using the cabal solver.
+Then it fetches the compiler (if you don't have it yet) from [the official mirror](https://downloads.haskell.org/~ghc/) and configures the project to use it.
 
 This program tries to solve these issues in the easiest possible way.
-It discovers which `base` version you need to build your package and automatically downloads the corresponding `ghc`.
 The GHC compiler will be downloaded from [the official mirror](https://downloads.haskell.org/~ghc/), checked and installed for you.
 No need to manually manage different ghc versions by hand!
 
@@ -35,7 +34,7 @@ Then run:
 
 > vabal
 
-This will find out which GHC version is needed to build the project and then modify `cabal.project.local` to tell Cabal which compiler to use and where to find it.
+This will find out which GHC version is needed to build the project and then updates `cabal.project.local` to tell `cabal` which compiler to use and where to find it.
 
 That is it! You can now use `cabal` as you are accustomed to:
 
@@ -48,6 +47,8 @@ Now your project builds with the configured compiler and you will not get `base`
 --------------
 
 Francesco Ariis
+
+Francesco Gazzetta
 
 Francesco Magliocca
 

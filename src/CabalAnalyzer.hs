@@ -1,5 +1,9 @@
+{-# LANGUAGE OverloadedStrings #-}
 module CabalAnalyzer (analyzeCabalFileDefaultTarget) where
 
+
+import qualified Cabal.Plan as P
+    
 import Distribution.Types.GenericPackageDescription
 import Distribution.PackageDescription.Parsec
 import Distribution.Verbosity
@@ -12,13 +16,19 @@ import Distribution.Types.PackageName
 import Distribution.Types.Condition
 import Distribution.System
 
+import System.Exit
+import System.Posix.Temp
+import System.Directory
 import System.Environment
 import Data.List (find, intercalate)
 import Data.Maybe (isJust, listToMaybe, catMaybes)
 import Data.Bits (xor)
 
-import VabalError
+import qualified Data.Map.Strict as M
 
+import VabalError
+import ProcessUtils
+import Control.Exception (bracket)
 -- TODO: put this table in a separate external file
 baseToGHCMap :: [(Version, Version)]
 baseToGHCMap = reverse
@@ -76,8 +86,8 @@ evalCondition flagsSet (COr cond1 cond2)  = evalCondition flagsSet cond1 || eval
 evalCondition flagsSet (CAnd cond1 cond2) = evalCondition flagsSet cond1 && evalCondition flagsSet cond2
 
 
-analyzeCabalFileDefaultTarget :: [FlagName] -> FilePath -> IO String
-analyzeCabalFileDefaultTarget flags filepath = do
+analyzeCabalFileDefaultTargetShallow :: [FlagName] -> FilePath -> IO VersionRange
+analyzeCabalFileDefaultTargetShallow flags filepath = do
     res <- readGenericPackageDescription normal filepath
     let canDetermineDefaultTarget = isJust (condLibrary res) `xor` (not . null $ condExecutables res)
 
@@ -90,10 +100,8 @@ analyzeCabalFileDefaultTarget flags filepath = do
 
         case baseVersion of
             Nothing -> throwVabalErrorIO "Error, no base package found"
-            Just baseVersion -> do
-                case getNewestGHCFromVersionRange baseVersion of
-                    Nothing -> throwVabalErrorIO "Error, could not satisfy constraints"
-                    Just version -> return $ prettyPrintVersion version
+            Just baseVersion -> return baseVersion
+
 
 
 -- Find the first base constraint resolving conditional statements
@@ -113,3 +121,28 @@ getBaseConstraints :: [Dependency] -> Maybe VersionRange
 getBaseConstraints deps = depVerRange <$> find isBase deps
     where isBase (Dependency packageName _) = unPackageName packageName == "base"
 
+analyzeCabalFileDefaultTargetDeep :: [FlagName] -> FilePath -> IO VersionRange
+analyzeCabalFileDefaultTargetDeep flags filepath =
+    bracket (mkdtemp "/tmp/package-config-dir") removeDirectoryRecursive $ \tmpDir -> do
+        withCurrentDirectory tmpDir $ do
+            writeFile "cabal.project" $ "packages: " ++ filepath ++ "\npackage base\n    flags: +integer-gmp"
+            res <- runExternalProcess "cabal" ["new-configure", "--allow-boot-library-installs"]
+            case res of
+                ExitFailure _ -> throwVabalErrorIO "Could not determine best base version."
+                ExitSuccess   -> do
+                    plan <- P.findAndDecodePlanJson (P.ProjectRelativeToDir tmpDir)
+                    let deps = map (P.uPId . snd) $ M.toList (P.pjUnits plan)
+                        isBasePackage (P.PkgId (P.PkgName name) _) = name == "base"
+
+                    case find isBasePackage deps of
+                        Nothing -> throwVabalErrorIO "Could not determine base version."
+                        Just (P.PkgId _ (P.Ver v)) -> return (thisVersion (mkVersion v))
+
+
+
+analyzeCabalFileDefaultTarget :: [FlagName] -> FilePath -> IO String
+analyzeCabalFileDefaultTarget flags filepath = do
+    baseVersion <- analyzeCabalFileDefaultTargetDeep flags filepath
+    case getNewestGHCFromVersionRange baseVersion of
+        Nothing -> throwVabalErrorIO "Error, could not satisfy constraints"
+        Just version -> return $ prettyPrintVersion version
