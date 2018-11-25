@@ -122,10 +122,12 @@ getBaseConstraints deps = depVerRange <$> find isBase deps
     where isBase (Dependency packageName _) = unPackageName packageName == "base"
 
 analyzeCabalFileDefaultTargetDeep :: [FlagName] -> FilePath -> IO VersionRange
-analyzeCabalFileDefaultTargetDeep flags filepath =
+analyzeCabalFileDefaultTargetDeep flags filepath = do
+    -- We need absolute path of cabal file
+    absoluteFilePath <- makeAbsolute filepath
     bracket (mkdtemp "/tmp/package-config-dir") removeDirectoryRecursive $ \tmpDir -> do
         withCurrentDirectory tmpDir $ do
-            writeFile "cabal.project" $ "packages: " ++ filepath ++ "\npackage base\n    flags: +integer-gmp"
+            writeFile "cabal.project" $ "packages: " ++ absoluteFilePath ++ "\npackage base\n    flags: +integer-gmp"
             res <- runExternalProcess "cabal" ["new-configure", "--allow-boot-library-installs"]
             case res of
                 ExitFailure _ -> throwVabalErrorIO "Could not determine best base version."
