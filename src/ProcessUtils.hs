@@ -8,3 +8,4 @@ runExternalProcess bin args = do
     let processDescr = (proc bin args)
     (_, _, _, procHandle) <- createProcess processDescr
     waitForProcess procHandle
+

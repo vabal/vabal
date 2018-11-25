@@ -7,6 +7,7 @@ import qualified Data.ByteString as B
 import qualified Network.HTTP.Client as N
 import qualified Network.HTTP.Client.TLS as N
 import qualified Network.HTTP.Types.Header as N
+import qualified Network.HTTP.Types.Status as N
 
 import System.IO (hFlush, stdout, withFile, Handle, IOMode(WriteMode))
 
@@ -14,6 +15,8 @@ import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8)
 
 import Data.List (find)
+
+import VabalError
 
 type ChunkProducer = ListT IO B.ByteString
 
@@ -55,21 +58,23 @@ getContentLength resp =
 for_ :: Monad m => ListT m a -> (a -> m ()) -> m ()
 for_ = flip traverse_
 
-runDownloader :: String -> FilePath -> IO ()
-runDownloader url outputFilename = do
-    manager <- N.newTlsManager
+runDownloader :: String -> N.Manager -> FilePath -> IO ()
+runDownloader url manager outputFilename = do
+    print url
     request <- N.parseRequest url
 
     N.withResponse request manager $ \resp -> do
         let contentLength = getContentLength resp
 
         let progressReporter = maybe downloadCountLoop progress contentLength
-
-        putStr "Progress: 0%\r"
-        hFlush stdout
-        withFile outputFilename WriteMode $ \handle -> do
-            for_ (downloader $ N.responseBody resp) $ \(byteCount, chunk) -> do
-                writeChunk handle chunk
-                progressReporter byteCount
-        putStrLn "\nDone"
+        case N.responseStatus resp == N.status200 of
+            False -> throwVabalErrorIO "Error while downloading GHC."
+            True  -> do
+                putStr "Progress: 0%\r"
+                hFlush stdout
+                withFile outputFilename WriteMode $ \handle -> do
+                    for_ (downloader $ N.responseBody resp) $ \(byteCount, chunk) -> do
+                        writeChunk handle chunk
+                        progressReporter byteCount
+                putStrLn "\nDone"
 
