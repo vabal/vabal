@@ -48,6 +48,8 @@ Now your project builds with the configured compiler and you will not get `base`
 
 Francesco Ariis
 
+Francesco Gazzetta
+
 Francesco Magliocca
 
 Marco Umbrello
