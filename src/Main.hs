@@ -47,8 +47,6 @@ main = do
 
     catch (vabalConfigure args) errorHandler
 
-
-
 -- Directory containing ghc installs
 ghcDirectory :: IO FilePath
 ghcDirectory = do
