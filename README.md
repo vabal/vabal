@@ -12,6 +12,7 @@ Have you ever dreamt about treating `base` as all other packages (i.e. change it
 
 `vabal` tries to determine a `ghc` version that makes compilation of the package possible using the cabal solver.
 Then it fetches the compiler (if you don't have it yet) from [the official mirror](https://downloads.haskell.org/~ghc/) and configures the project to use it.
+The downloaded binary will be checked against provided signature files (OpenPGP) or checksums for integrity.
 
 This program tries to solve these issues in the easiest possible way.
 The GHC compiler will be downloaded from [the official mirror](https://downloads.haskell.org/~ghc/), checked and installed for you.
