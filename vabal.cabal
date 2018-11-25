@@ -20,7 +20,7 @@ executable vabal
   other-modules:       CabalAnalyzer, VabalError, Downloader,
                        BuildTypeRecognizer, ProcessUtils
 -- other-extensions:
-  build-depends:       base >=4.11 && <4.12,
+  build-depends:       base >=4.11 && <4.13,
                        containers,
                        directory,
                        list-t,
