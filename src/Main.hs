@@ -30,9 +30,22 @@ import Downloader
 import BuildTypeRecognizer
 import GHCBinaryIntegrityVerifier
 import ProcessUtils
+import FlagsUtils
+
+import Distribution.Types.GenericPackageDescription
 
 withExceptionHandler :: Exception e => (e -> IO a) -> IO a -> IO a
 withExceptionHandler = flip catch
+
+showHelp :: IO ()
+showHelp = do
+    putStrLn "vabal usage:"
+    putStrLn "vabal <flags>"
+    putStrLn "<flags>  is a list of space separated flags."
+    putStrLn "         You can prefix a flag with -"
+    putStrLn "         to disable it."
+    putStrLn "         You can use + (or no prefix at all"
+    putStrLn "         to enable the flag, instead."
 
 main :: IO ()
 main = do
@@ -40,7 +53,11 @@ main = do
     let errorHandler :: SomeException -> IO ()
         errorHandler ex = putStrLn $ show ex
 
-    catch (vabalConfigure args) errorHandler
+    
+    if "--help" `elem` args then
+        showHelp
+    else
+        catch (vabalConfigure args) errorHandler
     return ()
 
 -- Directory containing ghc installs
@@ -57,7 +74,9 @@ vabalConfigure args = do
 
     cabalFilePath <- findCabalFile
 
-    version <- analyzeCabalFileDefaultTarget [] cabalFilePath
+    let flags = makeFlagAssignment args
+
+    version <- analyzeCabalFileDefaultTarget flags cabalFilePath
 
     let outputDir = ghcInstallDir </> ("ghc-" ++ version)
 
@@ -67,10 +86,10 @@ vabalConfigure args = do
 
     if ghcInPath then do
         putStrLn "Using GHC in path."
-        runCabalConfigure Nothing -- use ghc in path
+        runCabalConfigure flags Nothing -- use ghc in path
     else if ghcAlreadyInstalled then do
         putStrLn "Already installed."
-        runCabalConfigure (Just outputDir)
+        runCabalConfigure flags (Just outputDir)
     else do
         putStr $ "Do you want to download GHC " ++ version ++ "? [Y/n]:"
         hFlush stdout
@@ -97,21 +116,23 @@ vabalConfigure args = do
                     installGhcBinary buildType version outputDir
                     putStrLn "Ghc installed."
 
-                runCabalConfigure (Just outputDir)
+                runCabalConfigure flags (Just outputDir)
 
     return ()
 
 
 -- Run cabal new-configure with the given compiler version
 -- If The filepath is Nothing, then use the ghc in path
-runCabalConfigure :: Maybe FilePath -> IO ()
-runCabalConfigure outputDir = do
+runCabalConfigure :: FlagAssignment -> Maybe FilePath -> IO ()
+runCabalConfigure flags outputDir = do
     putStrLn "Running cabal new-configure."
 
     let args = case outputDir of
             Nothing        -> ["new-configure"]
             Just outputDir -> ["new-configure", "-w", outputDir </> "bin" </> "ghc"]
-    res <- runExternalProcess "cabal" args
+
+    let argsPlusFlags = args ++ makeCabalArguments flags
+    res <- runExternalProcess "cabal" argsPlusFlags
     case res of
         ExitSuccess -> return ()
         ExitFailure _ -> throwVabalErrorIO "Error while running cabal configure."

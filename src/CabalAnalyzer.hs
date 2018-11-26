@@ -29,6 +29,8 @@ import qualified Data.Map.Strict as M
 import VabalError
 import ProcessUtils
 import Control.Exception (bracket)
+import FlagsUtils
+
 -- TODO: put this table in a separate external file
 baseToGHCMap :: [(Version, Version)]
 baseToGHCMap = reverse
@@ -72,21 +74,28 @@ getNewestGHCFromVersionRange vr = snd <$> find (versionInRange vr . fst) baseToG
 prettyPrintVersion :: Version -> String
 prettyPrintVersion ver = intercalate "." $ map show (versionNumbers ver)
 
-resolveConfVar :: [FlagName] -> ConfVar -> Bool
-resolveConfVar flagsSet (OS os) = buildOS == os
-resolveConfVar flagsSet (Arch arch) = buildArch == arch
-resolveConfVar flagsSet (Flag flag) = flag `elem` flagsSet
-resolveConfVar flagsSet (Impl compiler versionRange) = throwVabalError "Conditionals on compiler version are not supported yet inside cabal files."
+getFlagDefaultValue :: FlagName -> [Flag] -> Bool
+getFlagDefaultValue name flags = case find (\f -> flagName f == name) flags of
+    Nothing -> False -- This should be impossible, though
+    Just flag -> flagDefault flag
 
-evalCondition :: [FlagName] -> Condition ConfVar -> Bool
-evalCondition flagsSet (Var cv) = resolveConfVar flagsSet cv
-evalCondition _ (Lit b)         = b
-evalCondition flagsSet (CNot cond) = not (evalCondition flagsSet cond)
-evalCondition flagsSet (COr cond1 cond2)  = evalCondition flagsSet cond1 || evalCondition flagsSet cond2
-evalCondition flagsSet (CAnd cond1 cond2) = evalCondition flagsSet cond1 && evalCondition flagsSet cond2
+resolveConfVar :: FlagAssignment -> [Flag] -> ConfVar -> Bool
+resolveConfVar _  _ (OS os) = buildOS == os
+resolveConfVar _ _ (Arch arch) = buildArch == arch
+resolveConfVar flagsSet allFlags (Flag flag) = case lookupFlagAssignment flag flagsSet of
+    Nothing -> getFlagDefaultValue flag allFlags
+    Just val -> val
+resolveConfVar _ _ (Impl compiler versionRange) = throwVabalError "Conditionals on compiler version are not supported yet inside cabal files."
+
+evalCondition :: FlagAssignment -> [Flag] -> Condition ConfVar -> Bool
+evalCondition flagsSet allFlags (Var cv) = resolveConfVar flagsSet allFlags cv
+evalCondition _ _ (Lit b)         = b
+evalCondition flagsSet allFlags (CNot cond) = not (evalCondition flagsSet allFlags cond)
+evalCondition flagsSet allFlags (COr cond1 cond2)  = evalCondition flagsSet allFlags cond1 || evalCondition flagsSet allFlags cond2
+evalCondition flagsSet allFlags (CAnd cond1 cond2) = evalCondition flagsSet allFlags cond1 && evalCondition flagsSet allFlags cond2
 
 
-analyzeCabalFileDefaultTargetShallow :: [FlagName] -> FilePath -> IO VersionRange
+analyzeCabalFileDefaultTargetShallow :: FlagAssignment -> FilePath -> IO VersionRange
 analyzeCabalFileDefaultTargetShallow flags filepath = do
     res <- readGenericPackageDescription normal filepath
     let canDetermineDefaultTarget = isJust (condLibrary res) `xor` (not . null $ condExecutables res)
@@ -95,8 +104,8 @@ analyzeCabalFileDefaultTargetShallow flags filepath = do
         throwVabalErrorIO "Can't determine default target"
     else do
         let baseVersion = case condLibrary res of
-                            Just lib -> analyzeTarget flags lib
-                            Nothing  -> analyzeTarget flags (snd . head $ condExecutables res)
+                            Just lib -> analyzeTarget flags (genPackageFlags res) lib
+                            Nothing  -> analyzeTarget flags (genPackageFlags res) (snd . head $ condExecutables res)
 
         case baseVersion of
             Nothing -> throwVabalErrorIO "Error, no base package found"
@@ -105,15 +114,15 @@ analyzeCabalFileDefaultTargetShallow flags filepath = do
 
 
 -- Find the first base constraint resolving conditional statements
-analyzeTarget :: [FlagName] -> CondTree ConfVar [Dependency] a -> Maybe VersionRange
-analyzeTarget flagsSet deps = case getBaseConstraints (condTreeConstraints deps) of
-                                  (Just baseVersion) -> Just baseVersion
-                                  Nothing -> listToMaybe . catMaybes $ map (analyzeConditionals flagsSet) (condTreeComponents deps)
+analyzeTarget :: FlagAssignment -> [Flag] -> CondTree ConfVar [Dependency] a -> Maybe VersionRange
+analyzeTarget flagsSet allFlags deps = case getBaseConstraints (condTreeConstraints deps) of
+                                          (Just baseVersion) -> Just baseVersion
+                                          Nothing -> listToMaybe . catMaybes $ map analyzeConditionals (condTreeComponents deps)
 
-    where analyzeConditionals :: [FlagName] -> CondBranch ConfVar [Dependency] a -> Maybe VersionRange
-          analyzeConditionals flagsSet branch = case evalCondition flagsSet (condBranchCondition branch) of
-                                                    True -> analyzeTarget flagsSet $ condBranchIfTrue branch
-                                                    False -> condBranchIfFalse branch >>= analyzeTarget flagsSet
+    where analyzeConditionals :: CondBranch ConfVar [Dependency] a -> Maybe VersionRange
+          analyzeConditionals branch = case evalCondition flagsSet allFlags (condBranchCondition branch) of
+                                            True -> analyzeTarget flagsSet allFlags $ condBranchIfTrue branch
+                                            False -> condBranchIfFalse branch >>= analyzeTarget flagsSet allFlags
 
 
 
@@ -121,14 +130,16 @@ getBaseConstraints :: [Dependency] -> Maybe VersionRange
 getBaseConstraints deps = depVerRange <$> find isBase deps
     where isBase (Dependency packageName _) = unPackageName packageName == "base"
 
-analyzeCabalFileDefaultTargetDeep :: [FlagName] -> FilePath -> IO VersionRange
+analyzeCabalFileDefaultTargetDeep :: FlagAssignment -> FilePath -> IO VersionRange
 analyzeCabalFileDefaultTargetDeep flags filepath = do
     -- We need absolute path of cabal file
     absoluteFilePath <- makeAbsolute filepath
     bracket (mkdtemp "/tmp/package-config-dir") removeDirectoryRecursive $ \tmpDir -> do
         withCurrentDirectory tmpDir $ do
             writeFile "cabal.project" $ "packages: " ++ absoluteFilePath ++ "\npackage base\n    flags: +integer-gmp"
-            res <- runExternalProcess "cabal" ["new-configure", "--allow-boot-library-installs"]
+
+            let cabalFlags = makeCabalArguments flags
+            res <- runExternalProcess "cabal" $ ["new-configure", "--allow-boot-library-installs"] ++ cabalFlags
             case res of
                 ExitFailure _ -> throwVabalErrorIO "Could not determine best base version."
                 ExitSuccess   -> do
@@ -141,8 +152,7 @@ analyzeCabalFileDefaultTargetDeep flags filepath = do
                         Just (P.PkgId _ (P.Ver v)) -> return (thisVersion (mkVersion v))
 
 
-
-analyzeCabalFileDefaultTarget :: [FlagName] -> FilePath -> IO String
+analyzeCabalFileDefaultTarget :: FlagAssignment -> FilePath -> IO String
 analyzeCabalFileDefaultTarget flags filepath = do
     baseVersion <- analyzeCabalFileDefaultTargetDeep flags filepath
     case getNewestGHCFromVersionRange baseVersion of

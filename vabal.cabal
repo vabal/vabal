@@ -19,7 +19,8 @@ executable vabal
   main-is:             Main.hs
   other-modules:       CabalAnalyzer, VabalError, Downloader,
                        BuildTypeRecognizer, GHCBinaryIntegrityVerifier,
-                       GHCInstallation, InstallationContext, ProcessUtils
+                       GHCInstallation, InstallationContext, ProcessUtils,
+                       FlagsUtils
 -- other-extensions:
   build-depends:       base >=4.11 && <4.13,
                        -- ^ GHC >= 8.4.1 && <= 8.6.2
