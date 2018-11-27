@@ -154,7 +154,7 @@ analyzeCabalFileDefaultTargetDeep flags filepath = do
 
 analyzeCabalFileDefaultTarget :: FlagAssignment -> FilePath -> IO String
 analyzeCabalFileDefaultTarget flags filepath = do
-    baseVersion <- analyzeCabalFileDefaultTargetDeep flags filepath
+    baseVersion <- analyzeCabalFileDefaultTargetShallow flags filepath
     case getNewestGHCFromVersionRange baseVersion of
         Nothing -> throwVabalErrorIO "Error, could not satisfy constraints"
         Just version -> return $ prettyPrintVersion version

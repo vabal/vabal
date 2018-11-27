@@ -10,7 +10,7 @@ Have you ever upgraded GHC just to find all your haskell projects broken?
 
 Have you ever dreamt about treating `base` as all other packages (i.e. change its version without much thought)?
 
-`vabal` tries to determine a `ghc` version that makes compilation of the package possible using the cabal solver.
+`vabal` tries to determine a `ghc` version that complies with the `base` package constraints found in the `.cabal` file.
 Then it fetches the compiler (if you don't have it yet) from [the official mirror](https://downloads.haskell.org/~ghc/) and configures the project to use it.
 The downloaded binary will be checked against provided signature files (OpenPGP) or checksums for integrity.
 
