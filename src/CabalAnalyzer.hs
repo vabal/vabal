@@ -15,6 +15,7 @@ import Distribution.Types.VersionRange
 import Distribution.Types.PackageName
 import Distribution.Types.Condition
 import Distribution.System
+import Distribution.Compiler
 
 import System.Exit
 import System.Posix.Temp
@@ -64,6 +65,9 @@ baseToGHCMap = reverse
     , (mkVersion [4,12,0,0], mkVersion [8,6,2])
     ]
 
+newestGHCVersion :: Version
+newestGHCVersion = mkVersion [8,6,2]
+
 -- TODO: Use binary search
 getNewestGHCFromVersionRange :: VersionRange -> Maybe Version
 getNewestGHCFromVersionRange vr = snd <$> find (versionInRange vr . fst) baseToGHCMap
@@ -85,7 +89,12 @@ resolveConfVar _ _ (Arch arch) = buildArch == arch
 resolveConfVar flagsSet allFlags (Flag flag) = case lookupFlagAssignment flag flagsSet of
     Nothing -> getFlagDefaultValue flag allFlags
     Just val -> val
-resolveConfVar _ _ (Impl compiler versionRange) = throwVabalError "Conditionals on compiler version are not supported yet inside cabal files."
+
+-- Pick the branch that guarantees the highest ghc version
+resolveConfVar _ _ (Impl GHC versionRange) = withinRange newestGHCVersion versionRange
+
+resolveConfVar _ _ _ = False
+
 
 evalCondition :: FlagAssignment -> [Flag] -> Condition ConfVar -> Bool
 evalCondition flagsSet allFlags (Var cv) = resolveConfVar flagsSet allFlags cv
