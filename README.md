@@ -26,6 +26,9 @@ you are always in charge of what is happening!
  How to use it
 --------------
 
+There are two requirements to use `vabal`, you need both `cabal` and `ghcup` in your `$PATH`.
+
+
 First cd into your project directory:
 
 > $ cd my-project/
