@@ -2,8 +2,6 @@
 module CabalAnalyzer (analyzeCabalFileDefaultTarget) where
 
 
-import qualified Cabal.Plan as P
-    
 import Distribution.Types.GenericPackageDescription
 import Distribution.PackageDescription.Parsec
 import Distribution.Verbosity
@@ -17,18 +15,12 @@ import Distribution.Types.Condition
 import Distribution.System
 import Distribution.Compiler
 
-import System.Exit
-import System.Posix.Temp
-import System.Directory
-import System.Environment
+
 import Data.List (find, intercalate)
 import Data.Maybe (isJust, listToMaybe, catMaybes)
 import Data.Bits (xor)
 
-import qualified Data.Map.Strict as M
-
 import VabalError
-import ProcessUtils
 import Control.Exception (bracket)
 import FlagsUtils
 
@@ -138,28 +130,6 @@ analyzeTarget flagsSet allFlags deps = case getBaseConstraints (condTreeConstrai
 getBaseConstraints :: [Dependency] -> Maybe VersionRange
 getBaseConstraints deps = depVerRange <$> find isBase deps
     where isBase (Dependency packageName _) = unPackageName packageName == "base"
-
-analyzeCabalFileDefaultTargetDeep :: FlagAssignment -> FilePath -> IO VersionRange
-analyzeCabalFileDefaultTargetDeep flags filepath = do
-    -- We need absolute path of cabal file
-    absoluteFilePath <- makeAbsolute filepath
-    bracket (mkdtemp "/tmp/package-config-dir") removeDirectoryRecursive $ \tmpDir -> do
-        withCurrentDirectory tmpDir $ do
-            writeFile "cabal.project" $ "packages: " ++ absoluteFilePath ++ "\npackage base\n    flags: +integer-gmp"
-
-            let cabalFlags = makeCabalArguments flags
-            res <- runExternalProcess "cabal" $ ["new-configure", "--allow-boot-library-installs"] ++ cabalFlags
-            case res of
-                ExitFailure _ -> throwVabalErrorIO "Could not determine best base version."
-                ExitSuccess   -> do
-                    plan <- P.findAndDecodePlanJson (P.ProjectRelativeToDir tmpDir)
-                    let deps = map (P.uPId . snd) $ M.toList (P.pjUnits plan)
-                        isBasePackage (P.PkgId (P.PkgName name) _) = name == "base"
-
-                    case find isBasePackage deps of
-                        Nothing -> throwVabalErrorIO "Could not determine base version."
-                        Just (P.PkgId _ (P.Ver v)) -> return (thisVersion (mkVersion v))
-
 
 analyzeCabalFileDefaultTarget :: FlagAssignment -> FilePath -> IO String
 analyzeCabalFileDefaultTarget flags filepath = do

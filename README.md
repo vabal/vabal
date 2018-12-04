@@ -11,11 +11,10 @@ Have you ever upgraded GHC just to find all your haskell projects broken?
 Have you ever dreamt about treating `base` as all other packages (i.e. change its version without much thought)?
 
 `vabal` tries to determine a `ghc` version that complies with the `base` package constraints found in the `.cabal` file.
-Then it fetches the compiler (if you don't have it yet) from [the official mirror](https://downloads.haskell.org/~ghc/) and configures the project to use it.
-The downloaded binary will be checked against provided signature files (OpenPGP) or checksums for integrity.
+Then it uses [ghcup](https://github.com/haskell/ghcup) to fetch the compiler (if you don't have it yet) and configures the project to use it.
 
 This program tries to solve these issues in the easiest possible way.
-The GHC compiler will be downloaded from [the official mirror](https://downloads.haskell.org/~ghc/), checked and installed for you.
+The GHC compiler downloading is managed by [ghcup](https://github.com/haskell/ghcup).
 No need to manually manage different ghc versions by hand!
 
 `vabal` tries to be as little intrusive as possible, leverages `cabal`'s capabilities of working with different GHC versions,
