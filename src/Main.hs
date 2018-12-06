@@ -55,7 +55,7 @@ vabalConfigure args = do
 
     let flags = makeFlagAssignment args
 
-    version <- analyzeCabalFileDefaultTarget flags cabalFilePath
+    version <- analyzeCabalFileAllTargets flags cabalFilePath
 
     path <- requireGHC version
 
@@ -66,13 +66,13 @@ vabalConfigure args = do
 
 -- Run cabal new-configure with the given compiler version
 -- If The filepath is Nothing, then use the ghc in path
-runCabalConfigure :: FlagAssignment -> Maybe FilePath -> IO ()
+runCabalConfigure :: FlagAssignment -> GhcLocation -> IO ()
 runCabalConfigure flags outputDir = do
     putStrLn "Running cabal new-configure."
 
     let args = case outputDir of
-            Nothing        -> ["new-configure"]
-            Just outputDir -> ["new-configure", "-w", outputDir </> "bin" </> "ghc"]
+            InPath                   -> ["new-configure"]
+            CustomLocation outputDir -> ["new-configure", "-w", outputDir </> "bin" </> "ghc"]
 
     let argsPlusFlags = args ++ makeCabalArguments flags
     res <- runExternalProcess "cabal" argsPlusFlags

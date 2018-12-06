@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module CabalAnalyzer (analyzeCabalFileDefaultTarget) where
+module CabalAnalyzer (analyzeCabalFileAllTargets) where
 
 
 import Distribution.Types.GenericPackageDescription
@@ -16,9 +16,11 @@ import Distribution.System
 import Distribution.Compiler
 
 
-import Data.List (find, intercalate)
+import Data.List (find, intercalate, partition)
 import Data.Maybe (isJust, listToMaybe, catMaybes)
 import Data.Bits (xor)
+
+import Control.Monad (join)
 
 import VabalError
 import Control.Exception (bracket)
@@ -58,7 +60,7 @@ baseToGHCMap = reverse
     ]
 
 newestGHCVersion :: Version
-newestGHCVersion = mkVersion [8,6,2]
+newestGHCVersion = snd $ last baseToGHCMap
 
 -- TODO: Use binary search
 getNewestGHCFromVersionRange :: VersionRange -> Maybe Version
@@ -96,23 +98,6 @@ evalCondition flagsSet allFlags (COr cond1 cond2)  = evalCondition flagsSet allF
 evalCondition flagsSet allFlags (CAnd cond1 cond2) = evalCondition flagsSet allFlags cond1 && evalCondition flagsSet allFlags cond2
 
 
-analyzeCabalFileDefaultTargetShallow :: FlagAssignment -> FilePath -> IO VersionRange
-analyzeCabalFileDefaultTargetShallow flags filepath = do
-    res <- readGenericPackageDescription normal filepath
-    let canDetermineDefaultTarget = isJust (condLibrary res) `xor` (not . null $ condExecutables res)
-
-    if not canDetermineDefaultTarget then
-        throwVabalErrorIO "Can't determine default target"
-    else do
-        let baseVersion = case condLibrary res of
-                            Just lib -> analyzeTarget flags (genPackageFlags res) lib
-                            Nothing  -> analyzeTarget flags (genPackageFlags res) (snd . head $ condExecutables res)
-
-        case baseVersion of
-            Nothing -> throwVabalErrorIO "Error, no base package found"
-            Just baseVersion -> return baseVersion
-
-
 
 -- Find the first base constraint resolving conditional statements
 analyzeTarget :: FlagAssignment -> [Flag] -> CondTree ConfVar [Dependency] a -> Maybe VersionRange
@@ -131,9 +116,81 @@ getBaseConstraints :: [Dependency] -> Maybe VersionRange
 getBaseConstraints deps = depVerRange <$> find isBase deps
     where isBase (Dependency packageName _) = unPackageName packageName == "base"
 
-analyzeCabalFileDefaultTarget :: FlagAssignment -> FilePath -> IO String
-analyzeCabalFileDefaultTarget flags filepath = do
-    baseVersion <- analyzeCabalFileDefaultTargetShallow flags filepath
-    case getNewestGHCFromVersionRange baseVersion of
-        Nothing -> throwVabalErrorIO "Error, could not satisfy constraints"
+
+getValidGhcForAllComponents :: FlagAssignment
+                            -> GenericPackageDescription
+                            -> [Flag]
+                            -> Maybe Version
+getValidGhcForAllComponents flags pkgDescr allFlags =
+    let targetAnalyzer = analyzeTarget flags allFlags
+        -- if there is a library, analyzeTarget
+        -- This leverages the Monad instance for Maybe
+        libBaseConstraint = condLibrary pkgDescr >>= targetAnalyzer
+        subLibsBaseConstraints = map (targetAnalyzer . snd) (condSubLibraries pkgDescr)
+        foreignLibsBaseConstraints = map (targetAnalyzer . snd) (condForeignLibs pkgDescr)
+        executablesBaseConstraints = map (targetAnalyzer . snd) (condExecutables pkgDescr)
+        testSuitesBaseConstraints = map (targetAnalyzer . snd) (condTestSuites pkgDescr)
+        benchmarksBaseConstraints = map (targetAnalyzer . snd) (condBenchmarks pkgDescr)
+
+        baseVersions = catMaybes $ libBaseConstraint : subLibsBaseConstraints
+                                                     ++ foreignLibsBaseConstraints
+                                                     ++ executablesBaseConstraints
+                                                     ++ testSuitesBaseConstraints
+                                                     ++ benchmarksBaseConstraints
+
+    in case baseVersions of
+        [] -> Nothing
+        vrs -> getNewestGHCFromVersionRange $ foldr1 intersectVersionRanges vrs
+
+
+isUnassignedFlag :: FlagAssignment -> Flag -> Bool
+isUnassignedFlag flags f = case lookupFlagAssignment (flagName f) flags of
+                               Nothing -> True
+                               _       -> False
+
+-- Generate all possible combination of flag assignments for the given set
+allAssignments :: [Flag] -> [[Flag]]
+allAssignments flags = let flags' = map (\f -> [f, flipFlag f]) flags
+                       in foldr combine [[]] flags'
+
+    where combine :: [Flag] -> [[Flag]] -> [[Flag]]
+          combine alternatives accum = do
+              val <- alternatives
+              rest <- accum
+              return (val : rest)
+
+          flipFlag :: Flag -> Flag
+          flipFlag flag = MkFlag (flagName flag)
+                                 (flagDescription flag)
+                                 (not $ flagDefault flag)
+                                 (flagManual flag)
+
+
+tryConfig :: FlagAssignment -> GenericPackageDescription -> [Flag] -> Maybe Version
+tryConfig flags pkgDescr next = getValidGhcForAllComponents flags pkgDescr next
+
+
+firstValidConfig :: [Maybe Version] -> Maybe Version
+firstValidConfig [] = Nothing
+firstValidConfig (Nothing:rest) = firstValidConfig rest
+firstValidConfig (c:_)          = c
+
+analyzeCabalFileAllTargets :: FlagAssignment -> FilePath -> IO String
+analyzeCabalFileAllTargets flags filepath = do
+    res <- readGenericPackageDescription normal filepath
+
+    let allFlags = genPackageFlags res
+
+    let unassignedFlags = filter (isUnassignedFlag flags) allFlags
+
+    -- nonManualUnassignedFlags are the flags we need to backtrack on,
+    -- when finding a satisfying config
+    let (nonManualUnassignedFlags, manualUnassignedFlags) = partition (not . flagManual) unassignedFlags
+
+    let possibleFlagsConfigs = map (++ manualUnassignedFlags) $ allAssignments nonManualUnassignedFlags
+
+    let ghcVersion = firstValidConfig $ map (tryConfig flags res) possibleFlagsConfigs
+    case ghcVersion of
+        Nothing -> throwVabalErrorIO "Error, could not satisfy constraints."
         Just version -> return $ prettyPrintVersion version
+

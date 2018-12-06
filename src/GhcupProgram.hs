@@ -14,6 +14,9 @@ import Control.Monad (when)
 
 import VabalError
 
+data GhcLocation = CustomLocation FilePath
+                 | InPath
+
 trimVersionString :: String -> String
 trimVersionString = dropWhile (== ' ')
 
@@ -46,11 +49,11 @@ checkGhcInPath version = catch getGhcVersion noGhcFound
 -- Asks ghcup to get the provided version for ghc,
 -- It'll return the file path of the downloaded ghc.
 -- If an error occurs a VabalError is thrown.
-requireGHC :: String -> IO (Maybe FilePath)
+requireGHC :: String -> IO GhcLocation
 requireGHC version = do
     ghcInPathIsFine <- checkGhcInPath version
     if ghcInPathIsFine then
-        return Nothing
+        return InPath
     else do
         ghcAlreadyInstalled <- versionAlreadyInstalled version
         when (not ghcAlreadyInstalled) $ do
@@ -60,5 +63,5 @@ requireGHC version = do
                 ExitSuccess   -> return ()
 
         home <- getHomeDirectory
-        return . Just $ home </> ".ghcup" </> "ghc" </> version </> "bin" </> "ghc"
+        return . CustomLocation $ home </> ".ghcup" </> "ghc" </> version </> "bin" </> "ghc"
 
