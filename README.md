@@ -23,11 +23,14 @@ At its core `vabal` just edits `cabal.project.local`, which you can then modify 
 you are always in charge of what is happening!
 
 
- How to use it
+ Requirements
 --------------
 
-There are two requirements to use `vabal`, you need both `cabal` and `ghcup` in your `$PATH`.
+`vabal` requires both `cabal` and `ghcup` in `PATH`
 
+
+ How to use it
+--------------
 
 First cd into your project directory:
 
