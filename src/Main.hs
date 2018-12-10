@@ -21,41 +21,85 @@ import FlagsUtils
 import GhcupProgram
 
 import Distribution.Types.GenericPackageDescription
+import Distribution.Types.Version
+import Distribution.Parsec.Class
+import Distribution.Parsec.FieldLineStream (fieldLineStreamFromString)
+
+import Options.Applicative
 
 withExceptionHandler :: Exception e => (e -> IO a) -> IO a -> IO a
 withExceptionHandler = flip catch
 
-showHelp :: IO ()
-showHelp = do
-    putStrLn "vabal usage:"
-    putStrLn "vabal <flags>"
-    putStrLn "<flags>  is a list of space separated flags."
-    putStrLn "         You can prefix a flag with -"
-    putStrLn "         to disable it."
-    putStrLn "         You can use + (or no prefix at all"
-    putStrLn "         to enable the flag, instead."
+versionParser :: ReadM (Maybe Version)
+versionParser = Just <$> maybeReader simpleParsec
+
+flagAssignmentParser :: ReadM FlagAssignment
+flagAssignmentParser = maybeReader $ \str ->
+    either (const Nothing) Just $
+        runParsecParser parsecFlagAssignment "<flagParsec>"
+                        (fieldLineStreamFromString str)
+
+
+data Arguments = Arguments
+               { ghcVersion :: Maybe Version
+               , configFlags :: FlagAssignment
+               }
+               deriving(Show)
+
+argsParser :: Parser Arguments
+argsParser = pure Arguments
+           <*> option versionParser
+               ( long "with-version"
+               <> short 'w'
+               <> metavar "VER"
+               <> help "Explicitly tell which version of ghc you want to use \
+                       \ for the project."
+               <> value Nothing
+               )
+           <*> option flagAssignmentParser
+               ( long "flags"
+               <> metavar "FLAGS"
+               <> help "String containing a list  of space separated flags \
+                       \ to be used to configure the project \
+                       \ (You can enable or disable a flag by adding a + or - \
+                       \ in front of the flag name. \
+                       \ When none is specified, the flag is enabled)."
+               <> value (mkFlagAssignment [])
+               )
 
 main :: IO ()
 main = do
-    args <- getArgs
+    let opts = info (argsParser <**> helper)
+             ( fullDesc
+             <> header "vabal - The Cabal Companion"
+             <> progDesc "Find out a version of the GHC compiler that satisfies \
+                         \ the constraints imposed on base in the cabal project. \
+                         \ then configure the cabal project \
+                         \ to use this version of the compiler."
+             )
+
+    args <- execParser opts
     let errorHandler :: SomeException -> IO ()
         errorHandler ex = putStrLn $ show ex
-
-    
-    if "--help" `elem` args then
-        showHelp
-    else
-        catch (vabalConfigure args) errorHandler
+    catch (vabalConfigure args) errorHandler
     return ()
 
-vabalConfigure :: [String] -> IO ()
+vabalConfigure :: Arguments -> IO ()
 vabalConfigure args = do
 
     cabalFilePath <- findCabalFile
 
-    let flags = makeFlagAssignment args
+    let specifiedGhcVersion = ghcVersion args
+    let flags = configFlags args
 
-    version <- analyzeCabalFileAllTargets flags cabalFilePath
+    version <- case specifiedGhcVersion of
+                    Just ghcVersion -> do
+                        res <- checkIfGivenVersionWorksForAllTargets flags cabalFilePath ghcVersion
+                        when (not res) $ putStrLn "Warning: The specified ghc version probably won't work."
+                        return ghcVersion
+
+                    Nothing -> analyzeCabalFileAllTargets flags cabalFilePath
+
 
     path <- requireGHC version
 

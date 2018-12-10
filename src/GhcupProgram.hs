@@ -10,12 +10,19 @@ import System.IO
 import Control.Exception (SomeException, catch)
 import System.FilePath
 
+import Distribution.Version
+
 import Control.Monad (when)
 
 import VabalError
 
 data GhcLocation = CustomLocation FilePath
                  | InPath
+
+
+
+prettyPrintVersion :: Version -> String
+prettyPrintVersion ver = intercalate "." $ map show (versionNumbers ver)
 
 trimVersionString :: String -> String
 trimVersionString = dropWhile (== ' ')
@@ -49,8 +56,9 @@ checkGhcInPath version = catch getGhcVersion noGhcFound
 -- Asks ghcup to get the provided version for ghc,
 -- It'll return the file path of the downloaded ghc.
 -- If an error occurs a VabalError is thrown.
-requireGHC :: String -> IO GhcLocation
-requireGHC version = do
+requireGHC :: Version -> IO GhcLocation
+requireGHC ghcVersion = do
+    let version = prettyPrintVersion ghcVersion
     ghcInPathIsFine <- checkGhcInPath version
     if ghcInPathIsFine then
         return InPath

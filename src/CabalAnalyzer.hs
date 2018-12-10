@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module CabalAnalyzer (analyzeCabalFileAllTargets) where
+module CabalAnalyzer (analyzeCabalFileAllTargets, checkIfGivenVersionWorksForAllTargets) where
 
 
 import Distribution.Types.GenericPackageDescription
@@ -68,9 +68,10 @@ getNewestGHCFromVersionRange vr = snd <$> find (versionInRange vr . fst) baseToG
     where versionInRange :: VersionRange -> Version -> Bool
           versionInRange = flip withinRange
 
-
-prettyPrintVersion :: Version -> String
-prettyPrintVersion ver = intercalate "." $ map show (versionNumbers ver)
+getAllGhcInVersionRange :: VersionRange -> [Version]
+getAllGhcInVersionRange vr = snd <$> filter (versionInRange vr . fst) baseToGHCMap
+    where versionInRange :: VersionRange -> Version -> Bool
+          versionInRange = flip withinRange
 
 getFlagDefaultValue :: FlagName -> [Flag] -> Bool
 getFlagDefaultValue name flags = case find (\f -> flagName f == name) flags of
@@ -117,11 +118,11 @@ getBaseConstraints deps = depVerRange <$> find isBase deps
     where isBase (Dependency packageName _) = unPackageName packageName == "base"
 
 
-getValidGhcForAllComponents :: FlagAssignment
+getBaseConstraintForAllComponents :: FlagAssignment
                             -> GenericPackageDescription
                             -> [Flag]
-                            -> Maybe Version
-getValidGhcForAllComponents flags pkgDescr allFlags =
+                            -> Maybe VersionRange
+getBaseConstraintForAllComponents flags pkgDescr allFlags =
     let targetAnalyzer = analyzeTarget flags allFlags
         -- if there is a library, analyzeTarget
         -- This leverages the Monad instance for Maybe
@@ -140,7 +141,7 @@ getValidGhcForAllComponents flags pkgDescr allFlags =
 
     in case baseVersions of
         [] -> Nothing
-        vrs -> getNewestGHCFromVersionRange $ foldr1 intersectVersionRanges vrs
+        vrs -> Just $ foldr1 intersectVersionRanges vrs
 
 
 isUnassignedFlag :: FlagAssignment -> Flag -> Bool
@@ -166,17 +167,18 @@ allAssignments flags = let flags' = map (\f -> [f, flipFlag f]) flags
                                  (flagManual flag)
 
 
-tryConfig :: FlagAssignment -> GenericPackageDescription -> [Flag] -> Maybe Version
-tryConfig flags pkgDescr next = getValidGhcForAllComponents flags pkgDescr next
+tryConfig :: FlagAssignment -> GenericPackageDescription -> [Flag] -> Maybe VersionRange
+tryConfig flags pkgDescr next = getBaseConstraintForAllComponents flags pkgDescr next
 
 
-firstValidConfig :: [Maybe Version] -> Maybe Version
+firstValidConfig :: [Maybe a] -> Maybe a
 firstValidConfig [] = Nothing
 firstValidConfig (Nothing:rest) = firstValidConfig rest
 firstValidConfig (c:_)          = c
 
-analyzeCabalFileAllTargets :: FlagAssignment -> FilePath -> IO String
-analyzeCabalFileAllTargets flags filepath = do
+
+analyzeAllTargets :: FlagAssignment -> FilePath -> (VersionRange -> Maybe a) -> IO (Maybe a)
+analyzeAllTargets flags filepath analyzer = do
     res <- readGenericPackageDescription normal filepath
 
     let allFlags = genPackageFlags res
@@ -189,8 +191,25 @@ analyzeCabalFileAllTargets flags filepath = do
 
     let possibleFlagsConfigs = map (++ manualUnassignedFlags) $ allAssignments nonManualUnassignedFlags
 
-    let ghcVersion = firstValidConfig $ map (tryConfig flags res) possibleFlagsConfigs
-    case ghcVersion of
-        Nothing -> throwVabalErrorIO "Error, could not satisfy constraints."
-        Just version -> return $ prettyPrintVersion version
+    let product = firstValidConfig $
+           map (\conf -> tryConfig flags res conf >>= analyzer) possibleFlagsConfigs
 
+    return product
+
+
+
+analyzeCabalFileAllTargets :: FlagAssignment -> FilePath -> IO Version
+analyzeCabalFileAllTargets flags filepath = do
+    product <- analyzeAllTargets flags filepath getNewestGHCFromVersionRange
+    case product of
+        Nothing -> throwVabalErrorIO "Error, could not satisfy constraints."
+        Just product -> return product
+
+checkIfGivenVersionWorksForAllTargets :: FlagAssignment -> FilePath -> Version -> IO Bool
+checkIfGivenVersionWorksForAllTargets flags filepath ghcVersion = do
+    res <- analyzeAllTargets flags filepath $ (\vr ->
+                case ghcVersion `elem` getAllGhcInVersionRange vr of
+                    True -> Just ghcVersion
+                    False -> Nothing)
+
+    return (isJust res)

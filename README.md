@@ -40,13 +40,37 @@ Then run:
 
 > vabal
 
-This will find out which GHC version is needed to build the project and then updates `cabal.project.local` to tell `cabal` which compiler to use and where to find it.
+This will find out which GHC version is needed to build the project and then runs `cabal new-configure`
+telling it which compiler to use and where to find it.
 
 That is it! You can now use `cabal` as you are accustomed to:
 
 > cabal new-build
 
 Now your project builds with the configured compiler and you will not get `base` version errors anymore!
+
+
+ Program usage
+---------------
+
+```
+vabal - The Cabal Companion
+
+Usage: vabal [-w|--with-version VER] [--flags FLAGS]
+  Find out a version of the GHC compiler that satisfies the constraints imposed
+  on base in the cabal project. then configure the cabal project to use this
+  version of the compiler.
+
+Available options:
+  -w,--with-version VER    Explicitly tell which version of ghc you want to use
+                           for the project.
+  --flags FLAGS            String containing a list of space separated flags to
+                           be used to configure the project (You can enable or
+                           disable a flag by adding a + or - in front of the
+                           flag name. When none is specified, the flag is
+                           enabled).
+  -h,--help                Show this help text
+```
 
 
  Contributors
