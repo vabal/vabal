@@ -45,6 +45,7 @@ flagAssignmentParser = maybeReader $ \str ->
 data Arguments = Arguments
                { ghcVersion :: Maybe Version
                , configFlags :: FlagAssignment
+               , cabalFile   :: Maybe FilePath
                }
                deriving(Show)
 
@@ -69,6 +70,13 @@ argsParser = pure Arguments
                <> value (mkFlagAssignment [])
                )
 
+           <*> option auto
+               ( long "cabal-file"
+               <> metavar "FILE"
+               <> help "Explicitly tell which cabal file to use."
+               <> value Nothing
+               )
+
 main :: IO ()
 main = do
     let opts = info (argsParser <**> helper)
@@ -82,14 +90,17 @@ main = do
 
     args <- execParser opts
     let errorHandler :: SomeException -> IO ()
-        errorHandler ex = putStrLn $ show ex
+        errorHandler ex = do
+            putStrLn $ show ex
+            exitWith (ExitFailure 1)
+
     catch (vabalConfigure args) errorHandler
     return ()
 
 vabalConfigure :: Arguments -> IO ()
 vabalConfigure args = do
 
-    cabalFilePath <- findCabalFile
+    cabalFilePath <- maybe findCabalFile return (cabalFile args)
 
     let specifiedGhcVersion = ghcVersion args
     let flags = configFlags args
