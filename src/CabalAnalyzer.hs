@@ -4,6 +4,16 @@ module CabalAnalyzer (analyzeCabalFileAllTargets, checkIfGivenVersionWorksForAll
 
 import Distribution.Types.GenericPackageDescription
 import Distribution.PackageDescription.Parsec
+import Distribution.PackageDescription.Configuration
+import Distribution.Types.PackageDescription
+import Distribution.Types.ComponentRequestedSpec
+import Distribution.Types.Library
+import Distribution.Types.Executable
+import Distribution.Types.ForeignLib
+import Distribution.Types.BuildInfo
+import Distribution.Types.SetupBuildInfo
+import Distribution.Types.TestSuite
+import Distribution.Types.Benchmark
 import Distribution.Verbosity
 import Distribution.Version
 import Distribution.Types.CondTree
@@ -17,7 +27,7 @@ import Distribution.Compiler
 
 
 import Data.List (find, intercalate, partition)
-import Data.Maybe (isJust, listToMaybe, catMaybes)
+import Data.Maybe (isJust, maybeToList, listToMaybe, catMaybes)
 import Data.Bits (xor)
 
 import Control.Monad (join)
@@ -62,6 +72,9 @@ baseToGHCMap = reverse
 newestGHCVersion :: Version
 newestGHCVersion = snd $ last baseToGHCMap
 
+compilerInfoFromVersion :: Version -> CompilerInfo
+compilerInfoFromVersion v = unknownCompilerInfo (CompilerId GHC v) NoAbiTag
+
 -- TODO: Use binary search
 getNewestGHCFromVersionRange :: VersionRange -> Maybe Version
 getNewestGHCFromVersionRange vr = snd <$> find (versionInRange vr . fst) baseToGHCMap
@@ -73,44 +86,6 @@ getAllGhcInVersionRange vr = snd <$> filter (versionInRange vr . fst) baseToGHCM
     where versionInRange :: VersionRange -> Version -> Bool
           versionInRange = flip withinRange
 
-getFlagDefaultValue :: FlagName -> [Flag] -> Bool
-getFlagDefaultValue name flags = case find (\f -> flagName f == name) flags of
-    Nothing -> False -- This should be impossible, though
-    Just flag -> flagDefault flag
-
-resolveConfVar :: FlagAssignment -> [Flag] -> ConfVar -> Bool
-resolveConfVar _  _ (OS os) = buildOS == os
-resolveConfVar _ _ (Arch arch) = buildArch == arch
-resolveConfVar flagsSet allFlags (Flag flag) = case lookupFlagAssignment flag flagsSet of
-    Nothing -> getFlagDefaultValue flag allFlags
-    Just val -> val
-
--- Pick the branch that guarantees the highest ghc version
-resolveConfVar _ _ (Impl GHC versionRange) = withinRange newestGHCVersion versionRange
-
-resolveConfVar _ _ _ = False
-
-
-evalCondition :: FlagAssignment -> [Flag] -> Condition ConfVar -> Bool
-evalCondition flagsSet allFlags (Var cv) = resolveConfVar flagsSet allFlags cv
-evalCondition _ _ (Lit b)         = b
-evalCondition flagsSet allFlags (CNot cond) = not (evalCondition flagsSet allFlags cond)
-evalCondition flagsSet allFlags (COr cond1 cond2)  = evalCondition flagsSet allFlags cond1 || evalCondition flagsSet allFlags cond2
-evalCondition flagsSet allFlags (CAnd cond1 cond2) = evalCondition flagsSet allFlags cond1 && evalCondition flagsSet allFlags cond2
-
-
-
--- Find the first base constraint resolving conditional statements
-analyzeTarget :: FlagAssignment -> [Flag] -> CondTree ConfVar [Dependency] a -> Maybe VersionRange
-analyzeTarget flagsSet allFlags deps = case getBaseConstraints (condTreeConstraints deps) of
-                                          (Just baseVersion) -> Just baseVersion
-                                          Nothing -> listToMaybe . catMaybes $ map analyzeConditionals (condTreeComponents deps)
-
-    where analyzeConditionals :: CondBranch ConfVar [Dependency] a -> Maybe VersionRange
-          analyzeConditionals branch = case evalCondition flagsSet allFlags (condBranchCondition branch) of
-                                            True -> analyzeTarget flagsSet allFlags $ condBranchIfTrue branch
-                                            False -> condBranchIfFalse branch >>= analyzeTarget flagsSet allFlags
-
 
 
 getBaseConstraints :: [Dependency] -> Maybe VersionRange
@@ -119,97 +94,55 @@ getBaseConstraints deps = depVerRange <$> find isBase deps
 
 
 getBaseConstraintForAllComponents :: FlagAssignment
+                            -> CompilerInfo
                             -> GenericPackageDescription
-                            -> [Flag]
-                            -> Maybe VersionRange
-getBaseConstraintForAllComponents flags pkgDescr allFlags =
-    let targetAnalyzer = analyzeTarget flags allFlags
-        -- if there is a library, analyzeTarget
-        -- This leverages the Monad instance for Maybe
-        libBaseConstraint = condLibrary pkgDescr >>= targetAnalyzer
-        subLibsBaseConstraints = map (targetAnalyzer . snd) (condSubLibraries pkgDescr)
-        foreignLibsBaseConstraints = map (targetAnalyzer . snd) (condForeignLibs pkgDescr)
-        executablesBaseConstraints = map (targetAnalyzer . snd) (condExecutables pkgDescr)
-        testSuitesBaseConstraints = map (targetAnalyzer . snd) (condTestSuites pkgDescr)
-        benchmarksBaseConstraints = map (targetAnalyzer . snd) (condBenchmarks pkgDescr)
+                            -> VersionRange
+getBaseConstraintForAllComponents flags compInfo pkgDescr =
+    let res = finalizePD flags
+              (ComponentRequestedSpec True True)
+              (const True)
+              buildPlatform
+              compInfo
+              []
+              pkgDescr
 
-        baseVersions = catMaybes $ libBaseConstraint : subLibsBaseConstraints
-                                                     ++ foreignLibsBaseConstraints
-                                                     ++ executablesBaseConstraints
-                                                     ++ testSuitesBaseConstraints
-                                                     ++ benchmarksBaseConstraints
+    in case res of
+        Left _ -> throwVabalError "Error while analyzing the cabal file."
+        Right (pd, _) ->
+            let setupDependencies = setupDepends <$> maybeToList (setupBuildInfo pd)
 
-    in case baseVersions of
-        [] -> Nothing
-        vrs -> Just $ foldr1 intersectVersionRanges vrs
+                projectDependencies = map targetBuildDepends $ concat
+                                    [ libBuildInfo <$> maybeToList (library pd)
+                                    , libBuildInfo <$> subLibraries pd
+                                    , buildInfo <$> executables pd
+                                    , foreignLibBuildInfo <$> foreignLibs pd
+                                    , testBuildInfo <$> testSuites pd
+                                    , benchmarkBuildInfo <$> benchmarks pd
+                                    ]
 
-
-isUnassignedFlag :: FlagAssignment -> Flag -> Bool
-isUnassignedFlag flags f = case lookupFlagAssignment (flagName f) flags of
-                               Nothing -> True
-                               _       -> False
-
--- Generate all possible combination of flag assignments for the given set
-allAssignments :: [Flag] -> [[Flag]]
-allAssignments flags = let flags' = map (\f -> [f, flipFlag f]) flags
-                       in foldr combine [[]] flags'
-
-    where combine :: [Flag] -> [[Flag]] -> [[Flag]]
-          combine alternatives accum = do
-              val <- alternatives
-              rest <- accum
-              return (val : rest)
-
-          flipFlag :: Flag -> Flag
-          flipFlag flag = MkFlag (flagName flag)
-                                 (flagDescription flag)
-                                 (not $ flagDefault flag)
-                                 (flagManual flag)
-
-
-tryConfig :: FlagAssignment -> GenericPackageDescription -> [Flag] -> Maybe VersionRange
-tryConfig flags pkgDescr next = getBaseConstraintForAllComponents flags pkgDescr next
-
-
-firstValidConfig :: [Maybe a] -> Maybe a
-firstValidConfig [] = Nothing
-firstValidConfig (Nothing:rest) = firstValidConfig rest
-firstValidConfig (c:_)          = c
-
-
-analyzeAllTargets :: FlagAssignment -> FilePath -> (VersionRange -> Maybe a) -> IO (Maybe a)
-analyzeAllTargets flags filepath analyzer = do
-    res <- readGenericPackageDescription normal filepath
-
-    let allFlags = genPackageFlags res
-
-    let unassignedFlags = filter (isUnassignedFlag flags) allFlags
-
-    -- nonManualUnassignedFlags are the flags we need to backtrack on,
-    -- when finding a satisfying config
-    let (nonManualUnassignedFlags, manualUnassignedFlags) = partition (not . flagManual) unassignedFlags
-
-    let possibleFlagsConfigs = map (++ manualUnassignedFlags) $ allAssignments nonManualUnassignedFlags
-
-    let product = firstValidConfig $
-           map (\conf -> tryConfig flags res conf >>= analyzer) possibleFlagsConfigs
-
-    return product
+                dependencies = setupDependencies ++ projectDependencies
+                constraints = catMaybes $ map getBaseConstraints dependencies
+            -- If constraints is empty, then no constraint is imposed on `base`
+            -- and thus, any version of ghc is fine
+            in foldr intersectVersionRanges anyVersion constraints
 
 
 
 analyzeCabalFileAllTargets :: FlagAssignment -> FilePath -> IO Version
 analyzeCabalFileAllTargets flags filepath = do
-    product <- analyzeAllTargets flags filepath getNewestGHCFromVersionRange
-    case product of
+    pkgDescr <- readGenericPackageDescription normal filepath
+
+    let newestGHC = compilerInfoFromVersion newestGHCVersion
+    let product = getBaseConstraintForAllComponents flags newestGHC pkgDescr
+    case getNewestGHCFromVersionRange product of
         Nothing -> throwVabalErrorIO "Error, could not satisfy constraints."
-        Just product -> return product
+        Just res -> return res
 
 checkIfGivenVersionWorksForAllTargets :: FlagAssignment -> FilePath -> Version -> IO Bool
 checkIfGivenVersionWorksForAllTargets flags filepath ghcVersion = do
-    res <- analyzeAllTargets flags filepath $ (\vr ->
-                case ghcVersion `elem` getAllGhcInVersionRange vr of
-                    True -> Just ghcVersion
-                    False -> Nothing)
+    pkgDescr <- readGenericPackageDescription normal filepath
 
-    return (isJust res)
+    let compInfo = compilerInfoFromVersion ghcVersion
+    let product = getBaseConstraintForAllComponents flags compInfo pkgDescr
+    return $ ghcVersion `elem` getAllGhcInVersionRange product
+

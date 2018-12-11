@@ -17,8 +17,7 @@ cabal-version:       >=1.10
 
 executable vabal
   main-is:             Main.hs
-  other-modules:       CabalAnalyzer, VabalError, ProcessUtils, FlagsUtils,
-                       GhcupProgram
+  other-modules:       CabalAnalyzer, VabalError, ProcessUtils, FlagsUtils, GhcupProgram
 -- other-extensions:
   build-depends:       base >=4.11 && <4.13,
                        -- ^ GHC >= 8.4.1 && <= 8.6.2

@@ -21,6 +21,8 @@ import FlagsUtils
 import GhcupProgram
 
 import Distribution.Types.GenericPackageDescription
+import Distribution.Verbosity
+import Distribution.PackageDescription.Parsec
 import Distribution.Types.Version
 import Distribution.Parsec.Class
 import Distribution.Parsec.FieldLineStream (fieldLineStreamFromString)
@@ -111,12 +113,12 @@ vabalConfigure args = do
 -- Run cabal new-configure with the given compiler version
 -- If The filepath is Nothing, then use the ghc in path
 runCabalConfigure :: FlagAssignment -> GhcLocation -> IO ()
-runCabalConfigure flags outputDir = do
+runCabalConfigure flags ghcLoc = do
     putStrLn "Running cabal new-configure."
 
-    let args = case outputDir of
-            InPath                   -> ["new-configure"]
-            CustomLocation outputDir -> ["new-configure", "-w", outputDir </> "bin" </> "ghc"]
+    let args = case ghcLoc of
+            InPath                 -> ["new-configure"]
+            CustomLocation ghcLoc  -> ["new-configure", "-w", ghcLoc ]
 
     let argsPlusFlags = args ++ makeCabalArguments flags
     res <- runExternalProcess "cabal" argsPlusFlags
