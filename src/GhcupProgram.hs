@@ -56,8 +56,8 @@ checkGhcInPath version = catch getGhcVersion noGhcFound
 -- Asks ghcup to get the provided version for ghc,
 -- It'll return the file path of the downloaded ghc.
 -- If an error occurs a VabalError is thrown.
-requireGHC :: Version -> IO GhcLocation
-requireGHC ghcVersion = do
+requireGHC :: Version -> Bool -> IO GhcLocation
+requireGHC ghcVersion noInstall = do
     let version = prettyPrintVersion ghcVersion
     ghcInPathIsFine <- checkGhcInPath version
     if ghcInPathIsFine then
@@ -65,10 +65,13 @@ requireGHC ghcVersion = do
     else do
         ghcAlreadyInstalled <- versionAlreadyInstalled version
         when (not ghcAlreadyInstalled) $ do
-            res <- runExternalProcess "ghcup" ["install", version]
-            case res of
-                ExitFailure _ -> throwVabalErrorIO "Error while installing ghc."
-                ExitSuccess   -> return ()
+            if noInstall then
+                throwVabalErrorIO "Required GHC version is not available on the system."
+            else do
+                res <- runExternalProcess "ghcup" ["install", version]
+                case res of
+                    ExitFailure _ -> throwVabalErrorIO "Error while installing ghc."
+                    ExitSuccess   -> return ()
 
         home <- getHomeDirectory
         return . CustomLocation $ home </> ".ghcup" </> "ghc" </> version </> "bin" </> "ghc"

@@ -1,5 +1,5 @@
 module Main where
-
+    
 import System.Directory
 import System.FilePath
 import System.Process
@@ -32,8 +32,8 @@ import Options.Applicative
 withExceptionHandler :: Exception e => (e -> IO a) -> IO a -> IO a
 withExceptionHandler = flip catch
 
-versionParser :: ReadM (Maybe Version)
-versionParser = Just <$> maybeReader simpleParsec
+versionParser :: ReadM Version
+versionParser = maybeReader simpleParsec
 
 flagAssignmentParser :: ReadM FlagAssignment
 flagAssignmentParser = maybeReader $ \str ->
@@ -41,24 +41,51 @@ flagAssignmentParser = maybeReader $ \str ->
         runParsecParser parsecFlagAssignment "<flagParsec>"
                         (fieldLineStreamFromString str)
 
+data VersionSpecification = GhcVersion Version
+                          | BaseVersion Version
+                          | NoSpecification
+                          deriving(Show)
 
 data Arguments = Arguments
-               { ghcVersion :: Maybe Version
+               { versionSpecification :: VersionSpecification
                , configFlags :: FlagAssignment
                , cabalFile   :: Maybe FilePath
+               , noInstall   :: Bool
                }
                deriving(Show)
 
+ghcVersionArgument :: Parser VersionSpecification
+ghcVersionArgument = pure GhcVersion
+                  <*> option versionParser
+                      ( long "with-ghc-version"
+                      <> short 'g'
+                      <> metavar "VER"
+                      <> help "Explicitly tell which version of ghc you want to use \
+                              \ for the project. \
+                              \ (Incompatible with option --with-base-version)"
+                      )
+
+baseVersionArgument :: Parser VersionSpecification
+baseVersionArgument = pure BaseVersion
+                   <*> option versionParser
+                       ( long "with-base-version"
+                       <> short 'b'
+                       <> metavar "VER"
+                       <> help "Specify the version of base package you want to use. \
+                                \ It is going to be checked against base constraints in \
+                                \ the cabal file for validity. \
+                                \ (Incompatible with option --with-ghc-version)"
+                       )
+
+versionSpecificationArguments :: Parser VersionSpecification
+versionSpecificationArguments =
+    ghcVersionArgument <|> baseVersionArgument <|> pure NoSpecification
+
+
+
 argsParser :: Parser Arguments
 argsParser = pure Arguments
-           <*> option versionParser
-               ( long "with-version"
-               <> short 'w'
-               <> metavar "VER"
-               <> help "Explicitly tell which version of ghc you want to use \
-                       \ for the project."
-               <> value Nothing
-               )
+           <*> versionSpecificationArguments
            <*> option flagAssignmentParser
                ( long "flags"
                <> metavar "FLAGS"
@@ -75,6 +102,10 @@ argsParser = pure Arguments
                <> metavar "FILE"
                <> help "Explicitly tell which cabal file to use."
                <> value Nothing
+               )
+           <*> switch
+               ( long "no-install"
+               <> help "If GHC needs to be downloaded, fail, instead."
                )
 
 main :: IO ()
@@ -102,19 +133,20 @@ vabalConfigure args = do
 
     cabalFilePath <- maybe findCabalFile return (cabalFile args)
 
-    let specifiedGhcVersion = ghcVersion args
     let flags = configFlags args
 
-    version <- case specifiedGhcVersion of
-                    Just ghcVersion -> do
+    version <- case versionSpecification args of
+                    GhcVersion ghcVersion -> do
                         res <- checkIfGivenVersionWorksForAllTargets flags cabalFilePath ghcVersion
                         when (not res) $ putStrLn "Warning: The specified ghc version probably won't work."
                         return ghcVersion
 
-                    Nothing -> analyzeCabalFileAllTargets flags cabalFilePath
+                    BaseVersion baseVersion -> analyzeCabalFileAllTargets flags (Just baseVersion) cabalFilePath
+
+                    NoSpecification -> analyzeCabalFileAllTargets flags Nothing cabalFilePath
 
 
-    path <- requireGHC version
+    path <- requireGHC version (noInstall args)
 
     runCabalConfigure flags path
 

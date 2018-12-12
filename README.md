@@ -56,20 +56,29 @@ Now your project builds with the configured compiler and you will not get `base`
 ```
 vabal - The Cabal Companion
 
-Usage: vabal [-w|--with-version VER] [--flags FLAGS] [--cabal-file FILE]
+Usage: vabal ([-g|--with-ghc-version VER] | [-b|--with-base-version VER])
+             [--flags FLAGS] [--cabal-file FILE] [--no-install]
   Find out a version of the GHC compiler that satisfies the constraints imposed
   on base in the cabal project. then configure the cabal project to use this
   version of the compiler.
 
 Available options:
-  -w,--with-version VER    Explicitly tell which version of ghc you want to use
-                           for the project.
+  -g,--with-ghc-version VER
+                           Explicitly tell which version of ghc you want to use
+                           for the project. (Incompatible with option
+                           --with-base-version)
+  -b,--with-base-version VER
+                           Specify the version of base package you want to use.
+                           It is going to be checked against base constraints in
+                           the cabal file for validity. (Incompatible with
+                           option --with-ghc-version)
   --flags FLAGS            String containing a list of space separated flags to
                            be used to configure the project (You can enable or
                            disable a flag by adding a + or - in front of the
                            flag name. When none is specified, the flag is
                            enabled).
   --cabal-file FILE        Explicitly tell which cabal file to use.
+  --no-install             If GHC needs to be downloaded, fail, instead.
   -h,--help                Show this help text
 ```
 
