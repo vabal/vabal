@@ -56,7 +56,7 @@ Now your project builds with the configured compiler and you will not get `base`
 ```
 vabal - The Cabal Companion
 
-Usage: vabal [-w|--with-version VER] [--flags FLAGS]
+Usage: vabal [-w|--with-version VER] [--flags FLAGS] [--cabal-file FILE]
   Find out a version of the GHC compiler that satisfies the constraints imposed
   on base in the cabal project. then configure the cabal project to use this
   version of the compiler.
@@ -69,6 +69,7 @@ Available options:
                            disable a flag by adding a + or - in front of the
                            flag name. When none is specified, the flag is
                            enabled).
+  --cabal-file FILE        Explicitly tell which cabal file to use.
   -h,--help                Show this help text
 ```
 
