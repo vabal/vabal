@@ -26,7 +26,9 @@ you are always in charge of what is happening!
  Requirements
 --------------
 
-`vabal` requires both `cabal-install >= 2.4` and `ghcup` in `PATH`
+These programs are required to be in `PATH`:
+- cabal-install >= 2.4
+- ghcup
 
 
  How to use it
