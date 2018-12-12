@@ -3,7 +3,6 @@ module Main where
 import System.Directory
 import System.FilePath
 import System.Process
-import System.IO (hPutStrLn, hGetLine, hFlush, stdout, stderr)
 import System.Environment (getArgs)
 
 import Control.Exception
@@ -19,6 +18,8 @@ import ProcessUtils
 import FlagsUtils
 
 import GhcupProgram
+
+import UserInterface
 
 import Distribution.Types.GenericPackageDescription
 import Distribution.Verbosity
@@ -122,7 +123,7 @@ main = do
     args <- execParser opts
     let errorHandler :: SomeException -> IO ()
         errorHandler ex = do
-            hPutStrLn stderr $ show ex
+            writeError $ show ex
             exitWith (ExitFailure 1)
 
     catch (vabalConfigure args) errorHandler
@@ -138,7 +139,8 @@ vabalConfigure args = do
     version <- case versionSpecification args of
                     GhcVersion ghcVersion -> do
                         res <- checkIfGivenVersionWorksForAllTargets flags cabalFilePath ghcVersion
-                        when (not res) $ putStrLn "Warning: The specified ghc version probably won't work."
+                        when (not res) $
+                            writeWarning "Warning: The specified ghc version probably won't work."
                         return ghcVersion
 
                     BaseVersion baseVersion -> analyzeCabalFileAllTargets flags (Just baseVersion) cabalFilePath
@@ -157,7 +159,7 @@ vabalConfigure args = do
 -- If The filepath is Nothing, then use the ghc in path
 runCabalConfigure :: FlagAssignment -> GhcLocation -> IO ()
 runCabalConfigure flags ghcLoc = do
-    putStrLn "Running cabal new-configure."
+    writeMessage "Running cabal new-configure."
 
     let args = case ghcLoc of
             InPath                 -> ["new-configure"]
