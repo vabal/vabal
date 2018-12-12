@@ -3,7 +3,7 @@ module Main where
 import System.Directory
 import System.FilePath
 import System.Process
-import System.IO (hGetLine, hFlush, stdout)
+import System.IO (hPutStrLn, hGetLine, hFlush, stdout, stderr)
 import System.Environment (getArgs)
 
 import Control.Exception
@@ -122,7 +122,7 @@ main = do
     args <- execParser opts
     let errorHandler :: SomeException -> IO ()
         errorHandler ex = do
-            putStrLn $ show ex
+            hPutStrLn stderr $ show ex
             exitWith (ExitFailure 1)
 
     catch (vabalConfigure args) errorHandler
