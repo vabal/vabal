@@ -68,6 +68,7 @@ baseToGHCMap = reverse
     , (mkVersion [4,11,1,0], mkVersion [8,4,3])
     , (mkVersion [4,12,0,0], mkVersion [8,6,1])
     , (mkVersion [4,12,0,0], mkVersion [8,6,2])
+    , (mkVersion [4,12,0,0], mkVersion [8,6,3])
     ]
 
 newestGHCVersion :: Version
