@@ -9,10 +9,13 @@ import System.Directory
 import System.IO
 import Control.Exception (SomeException, catch)
 import System.FilePath
+import System.Environment (lookupEnv)
 
 import Distribution.Version
 
 import Control.Monad (when)
+
+import Data.Maybe (fromMaybe)
 
 import VabalError
 
@@ -73,6 +76,11 @@ requireGHC ghcVersion noInstall = do
                     ExitFailure _ -> throwVabalErrorIO "Error while installing ghc."
                     ExitSuccess   -> return ()
 
-        home <- getHomeDirectory
-        return . CustomLocation $ home </> ".ghcup" </> "ghc" </> version </> "bin" </> "ghc"
+        -- ghcup's install directory can be customized through the use of
+        -- the GHCUP_INSTALL_BASE_PREFIX env variabile.
+        -- If it is not set, its default value is $HOME
+        homeDir <- getHomeDirectory
+        ghcupInstallBasePrefix <- fromMaybe homeDir <$> lookupEnv "GHCUP_INSTALL_BASE_PREFIX"
+
+        return . CustomLocation $ ghcupInstallBasePrefix </> ".ghcup" </> "ghc" </> version </> "bin" </> "ghc"
 
