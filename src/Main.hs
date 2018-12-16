@@ -21,6 +21,8 @@ import GhcupProgram
 
 import UserInterface
 
+import System.TimeIt
+
 import Distribution.Types.GenericPackageDescription
 import Distribution.Verbosity
 import Distribution.PackageDescription.Parsec
@@ -98,12 +100,11 @@ argsParser = pure Arguments
                <> value (mkFlagAssignment [])
                )
 
-           <*> option auto
+           <*> optional(strOption
                ( long "cabal-file"
                <> metavar "FILE"
                <> help "Explicitly tell which cabal file to use."
-               <> value Nothing
-               )
+               ))
            <*> switch
                ( long "no-install"
                <> help "If GHC needs to be downloaded, fail, instead."
@@ -145,8 +146,13 @@ vabalConfigure args = do
 
                     BaseVersion baseVersion -> analyzeCabalFileAllTargets flags (Just baseVersion) cabalFilePath
 
-                    NoSpecification -> analyzeCabalFileAllTargets flags Nothing cabalFilePath
+                    NoSpecification -> timeIt $ combinatorialAnalyze flags cabalFilePath -- analyzeCabalFileAllTargets flags Nothing cabalFilePath
 
+
+    putStrLn "Das version: "
+    print version
+
+    -- exitWith ExitSuccess
 
     path <- requireGHC version (noInstall args)
 

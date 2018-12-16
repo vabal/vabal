@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module CabalAnalyzer (analyzeCabalFileAllTargets, checkIfGivenVersionWorksForAllTargets) where
+module CabalAnalyzer (analyzeCabalFileAllTargets, checkIfGivenVersionWorksForAllTargets, combinatorialAnalyze) where
 
 import Debug.Trace
 
@@ -36,6 +36,8 @@ import Control.Monad (join)
 import VabalError
 import Control.Exception (bracket)
 import FlagsUtils
+
+import Sat
 
 -- TODO: put this table in a separate external file
 baseToGHCMap :: [(Version, Version)]
@@ -78,8 +80,8 @@ compilerInfoFromVersion :: Version -> CompilerInfo
 compilerInfoFromVersion v = unknownCompilerInfo (CompilerId GHC v) NoAbiTag
 
 -- TODO: Use binary search
-getNewestGHCFromVersionRange :: VersionRange -> Maybe Version
-getNewestGHCFromVersionRange vr = snd <$> find (versionInRange vr . fst) baseToGHCMap
+getNewestGHCInVersionRange :: VersionRange -> Maybe Version
+getNewestGHCInVersionRange vr = snd <$> find (versionInRange vr . fst) baseToGHCMap
     where versionInRange :: VersionRange -> Version -> Bool
           versionInRange = flip withinRange
 
@@ -100,19 +102,20 @@ getBaseConstraintForAllComponents :: FlagAssignment
                             -> GenericPackageDescription
                             -> Maybe Version
                             -> VersionRange
-getBaseConstraintForAllComponents flags compInfo pkgDescr baseVersionConstraint =
-    let makeBaseDep v = [Dependency (mkPackageName "base") (thisVersion v)]
-        otherDeps = maybe [] makeBaseDep baseVersionConstraint
+                            -> Maybe VersionRange
+getBaseConstraintForAllComponents flags compInfo pkgDescr baseVersion extraBaseConstraints =
+    let makeBaseDep vr = [Dependency (mkPackageName "base") vr]
+        otherDeps = maybe [] (makeBaseDep . thisVersion) baseVersion
         res = finalizePD flags
               (ComponentRequestedSpec True True)
               (const True)
               buildPlatform
               compInfo
-              otherDeps
+              (makeBaseDep extraBaseConstraints ++ otherDeps)
               pkgDescr
 
     in case res of
-        Left _ -> throwVabalError "Error while analyzing the cabal file."
+        Left _ -> Nothing -- throwVabalError "Error while analyzing the cabal file."
         Right (pd, _) ->
             let setupDependencies = setupDepends <$> maybeToList (setupBuildInfo pd)
 
@@ -129,10 +132,34 @@ getBaseConstraintForAllComponents flags compInfo pkgDescr baseVersionConstraint 
                 constraints = catMaybes $ map getBaseConstraints dependencies
             -- If constraints is empty, then no constraint is imposed on `base`
             -- and thus, any version of ghc is fine
-            in foldr intersectVersionRanges anyVersion constraints
+            in Just $ foldr intersectVersionRanges anyVersion constraints
 
+firstSuccessOr :: [Maybe a] -> a -> a
+firstSuccessOr [] v = v
+firstSuccessOr (Nothing:xs) v = firstSuccessOr xs v
+firstSuccessOr (Just v:_) _ = v
 
+combinatorialAnalyze :: FlagAssignment -> FilePath -> IO Version
+combinatorialAnalyze flags filepath = do
+    pkgDescr <- readGenericPackageDescription normal filepath
+{-
+    let ghcs = map (\(a, b) -> (a, compilerInfoFromVersion b)) $ usefulGhcsForPkgDescr pkgDescr
 
+    let vals = map (\(c, info) -> getBaseConstraintForAllComponents flags info pkgDescr Nothing c) ghcs
+
+    let res = firstSuccess vals-}
+
+    -- print res
+    let newestGHC = compilerInfoFromVersion newestGHCVersion
+    let product = getBaseConstraintForAllComponents flags newestGHC pkgDescr Nothing anyVersion
+
+    res <- maybe (throwVabalErrorIO "Urca") return product
+
+    case getNewestGHCInVersionRange res of
+        Nothing -> throwVabalErrorIO "Error, could not satisfy constraints."
+        Just g  -> return g
+
+{-
 analyzeCabalFileAllTargets :: FlagAssignment -> Maybe Version -> FilePath -> IO Version
 analyzeCabalFileAllTargets flags baseVersionConstraint filepath = do
     pkgDescr <- readGenericPackageDescription normal filepath
@@ -151,4 +178,11 @@ checkIfGivenVersionWorksForAllTargets flags filepath ghcVersion = do
     let compInfo = compilerInfoFromVersion ghcVersion
     let product = getBaseConstraintForAllComponents flags compInfo pkgDescr Nothing
     return $ ghcVersion `elem` getAllGhcInVersionRange product
+-}
 
+
+analyzeCabalFileAllTargets :: FlagAssignment -> Maybe Version -> FilePath -> IO Version
+analyzeCabalFileAllTargets = undefined
+
+checkIfGivenVersionWorksForAllTargets :: FlagAssignment -> FilePath -> Version -> IO Bool
+checkIfGivenVersionWorksForAllTargets = undefined
