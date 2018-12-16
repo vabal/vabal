@@ -98,11 +98,12 @@ argsParser = pure Arguments
                <> value (mkFlagAssignment [])
                )
 
-           <*> option auto
-               ( long "cabal-file"
-               <> metavar "FILE"
-               <> help "Explicitly tell which cabal file to use."
-               <> value Nothing
+           <*> optional
+               ( strOption
+                 ( long "cabal-file"
+                 <> metavar "FILE"
+                 <> help "Explicitly tell which cabal file to use."
+                 )
                )
            <*> switch
                ( long "no-install"
