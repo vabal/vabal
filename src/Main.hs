@@ -30,6 +30,8 @@ import Distribution.Types.Version
 import Distribution.Parsec.Class
 import Distribution.Parsec.FieldLineStream (fieldLineStreamFromString)
 
+import qualified Data.ByteString as B
+
 import Options.Applicative
 
 withExceptionHandler :: Exception e => (e -> IO a) -> IO a -> IO a
@@ -135,18 +137,20 @@ vabalConfigure args = do
 
     cabalFilePath <- maybe findCabalFile return (cabalFile args)
 
+    cabalFile <- B.readFile cabalFilePath
+
     let flags = configFlags args
 
     version <- case versionSpecification args of
                     GhcVersion ghcVersion -> do
-                        res <- checkIfGivenVersionWorksForAllTargets flags cabalFilePath ghcVersion
+                        res <- return $ checkIfGivenVersionWorksForAllTargets flags cabalFile ghcVersion
                         when (not res) $
                             writeWarning "Warning: The specified ghc version probably won't work."
                         return ghcVersion
 
-                    BaseVersion baseVersion -> analyzeCabalFileAllTargets flags (Just baseVersion) cabalFilePath
+                    BaseVersion baseVersion -> return $ analyzeCabalFileAllTargets flags (Just baseVersion) cabalFile
 
-                    NoSpecification -> timeIt $ combinatorialAnalyze flags cabalFilePath -- analyzeCabalFileAllTargets flags Nothing cabalFilePath
+                    NoSpecification -> return $ analyzeCabalFileAllTargets flags Nothing cabalFile
 
 
     putStrLn "Das version: "
