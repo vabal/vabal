@@ -21,12 +21,16 @@ import GhcupProgram
 
 import UserInterface
 
+import System.TimeIt
+
 import Distribution.Types.GenericPackageDescription
 import Distribution.Verbosity
 import Distribution.PackageDescription.Parsec
 import Distribution.Types.Version
 import Distribution.Parsec.Class
 import Distribution.Parsec.FieldLineStream (fieldLineStreamFromString)
+
+import qualified Data.ByteString as B
 
 import Options.Applicative
 
@@ -97,7 +101,6 @@ argsParser = pure Arguments
                        \ When none is specified, the flag is enabled)."
                <> value (mkFlagAssignment [])
                )
-
            <*> optional
                ( strOption
                  ( long "cabal-file"
@@ -135,19 +138,26 @@ vabalConfigure args = do
 
     cabalFilePath <- maybe findCabalFile return (cabalFile args)
 
+    cabalFile <- B.readFile cabalFilePath
+
     let flags = configFlags args
 
     version <- case versionSpecification args of
                     GhcVersion ghcVersion -> do
-                        res <- checkIfGivenVersionWorksForAllTargets flags cabalFilePath ghcVersion
+                        res <- return $ checkIfGivenVersionWorksForAllTargets flags cabalFile ghcVersion
                         when (not res) $
                             writeWarning "Warning: The specified ghc version probably won't work."
                         return ghcVersion
 
-                    BaseVersion baseVersion -> analyzeCabalFileAllTargets flags (Just baseVersion) cabalFilePath
+                    BaseVersion baseVersion -> return $ analyzeCabalFileAllTargets flags (Just baseVersion) cabalFile
 
-                    NoSpecification -> analyzeCabalFileAllTargets flags Nothing cabalFilePath
+                    NoSpecification -> return $ analyzeCabalFileAllTargets flags Nothing cabalFile
 
+
+    putStrLn "Das version: "
+    print version
+
+    -- exitWith ExitSuccess
 
     path <- requireGHC version (noInstall args)
 
