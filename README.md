@@ -28,7 +28,6 @@ this behavior can be disabled with `--no-install` flag, so you are always in cha
 --------------
 
 These programs are required to be in `PATH`:
-- cabal-install >= 2.4
 - ghcup
 
 
@@ -45,22 +44,35 @@ then it will print to stdout the path to the obtained GHC compiler.
 This can be combined with `cabal`'s -w options.
 So to build the project using the detected compiler, you can run:
 
-> cabal new-build -w $(vabal)
+> cabal new-build -w "$(vabal)"
 
 If you want to use the chosen compiler persistently,
 you can just configure the project to use it, like this:
 
-> cabal new-configure -w $(vabal)
+> cabal new-configure -w "$(vabal)"
 
 That is it! Now your project with build with the configured compiler and you will not get `base` version errors anymore!
 
 NB: 
 > The `$(vabal)` syntax is command substitution in `sh` and `bash` shells, it will replace `$(vabal)` with `vabal`'s output
-> (for example `cabal new-build -w $(vabal)` becomes `cabal new-build -w /path/to/nice/ghc/version/ghc`)
+> (for example `cabal new-build -w "$(vabal)"` becomes `cabal new-build -w /path/to/nice/ghc/version/ghc`)
 >
 > If you are using `fish` shell command substitution is done like this: `cabal new-build (vabal)`.
 >
 > Consult your shell's manual to see how command substitution is done.
+
+
+ Gotchas
+----------
+
+Here are some known gotchas that affect `vabal`:
+- vabal trusts the constraints imposed on `base` that it finds in the cabal file,
+therefore it only finds a ghc version that makes it possible to respect the constraints,
+but it is not guaranteed that the build will be successful. (Generally one should always write correct constraints)
+
+- if you want to specify some flags to be used when configuring a package, right now you should repeat them twice,
+once to pass them to cabal and once for vabal: `cabal new-configure -fmyflag -w $(vabal --flags="myflag")`.
+The same thing goes for the `--cabal-file` flag.
 
 
  Program usage
@@ -96,6 +108,18 @@ Available options:
 ```
 
 
+ Contributing
+--------------
+
+Pull Requests and suggestions are welcome.
+
+
+ Issues
+--------
+
+You can signal issues [here](https://github.com/Franciman/vabal/issues)
+
+
  Contributors
 --------------
 
@@ -108,3 +132,4 @@ Francesco Magliocca
 Lorenzo Tabacchini
 
 Marco Umbrello
+
