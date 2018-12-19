@@ -71,7 +71,7 @@ therefore it only finds a ghc version that makes it possible to respect the cons
 but it is not guaranteed that the build will be successful. (Generally one should always write correct constraints)
 
 - if you want to specify some flags to be used when configuring a package, right now you should repeat them twice,
-once to pass them to cabal and once for vabal: `cabal new-configure -fmyflag -w $(vabal --flags="myflag")`.
+once to pass them to cabal and once for vabal: `cabal new-configure -fmyflag -w "$(vabal --flags='myflag')"`.
 The same thing goes for the `--cabal-file` flag.
 
 
