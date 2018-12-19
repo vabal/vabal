@@ -1,7 +1,5 @@
 module CabalAnalyzer (analyzeCabalFileAllTargets, checkIfGivenVersionWorksForAllTargets) where
 
-import Debug.Trace
-
 import Distribution.Types.GenericPackageDescription
 import Distribution.PackageDescription.Parsec
 import Distribution.PackageDescription.Configuration
@@ -14,31 +12,30 @@ import Distribution.Types.BuildInfo
 import Distribution.Types.SetupBuildInfo
 import Distribution.Types.TestSuite
 import Distribution.Types.Benchmark
-import Distribution.Verbosity
 import Distribution.Version
-import Distribution.Types.CondTree
-import Distribution.Types.UnqualComponentName
 import Distribution.Types.Dependency
 import Distribution.Types.PackageName
-import Distribution.Types.Condition
 import Distribution.System
 import Distribution.Compiler
 
 
-import Data.List (find, intercalate, partition)
-import Data.Maybe (isJust, maybeToList, listToMaybe, catMaybes)
-import Data.Bits (xor)
+import Data.Maybe (fromMaybe, maybeToList)
 
 import qualified Data.ByteString as B
 
-import Control.Monad (join, msum)
+import Control.Monad (msum)
 
 import VabalError
-import Control.Exception (bracket)
 
 import GhcVersionChaser
 
 import GhcDatabase
+
+unableToSatisfyConstraintsError :: a
+unableToSatisfyConstraintsError = throwVabalError "Error, could not satisfy constraints."
+
+cannotParseCabalFileError :: a
+cannotParseCabalFileError = throwVabalError "Error while parsing cabal file."
 
 makeCompilerInfo :: Version -> CompilerInfo
 makeCompilerInfo  v = unknownCompilerInfo (CompilerId GHC v) NoAbiTag
@@ -65,18 +62,17 @@ constraintsForBase :: FlagAssignment
                    -> CompilerInfo
                    -> Maybe VersionRange
 constraintsForBase flags pkgDescr otherBaseConstraints compiler =
-    let makeBaseDep vr = Dependency (mkPackageName "base") vr
-        packageDescription  = finalizePD flags
-                              (ComponentRequestedSpec True True)
-                              (queryDependency otherBaseConstraints)
-                              buildPlatform
-                              compiler
-                              []
-                              pkgDescr
+    let finalizedPkgDescr = finalizePD flags
+                            (ComponentRequestedSpec True True)
+                            (queryDependency otherBaseConstraints)
+                            buildPlatform
+                            compiler
+                            []
+                            pkgDescr
 
-    in case packageDescription of
+    in case finalizedPkgDescr of
         Left _ -> Nothing -- throwVabalError "Error while analyzing the cabal file."
-        Right (pd, fields) ->
+        Right (pd, _) ->
             let setupDependencies = setupDepends <$> maybeToList (setupBuildInfo pd)
 
                 projectDependencies = map targetBuildDepends $ concat
@@ -106,30 +102,13 @@ findCompilerVersion flags pkgDescr otherBaseConstraints ghc = do
     newestGhcVersionIn versionRange
 
 
--- TODO: Remove this, it's useless
-analyzeCabalFileAllTargetsNoBacktrack :: FlagAssignment
-                                      -> Maybe Version
-                                      -> B.ByteString
-                                      -> Version
-analyzeCabalFileAllTargetsNoBacktrack flags baseVersionConstraint cabalFile =
-    case parseGenericPackageDescriptionMaybe cabalFile of
-        Nothing -> throwVabalError "Error while parsing cabal file."
-        Just pkgDescr ->
-            let ghc = makeCompilerInfo newestGhcVersion
-                otherBaseConstraints = maybe anyVersion thisVersion baseVersionConstraint
-
-            in case findCompilerVersion flags pkgDescr otherBaseConstraints ghc of
-                Nothing -> throwVabalError "Error, could not satisfy constraints."
-                Just version -> version
-
-
 analyzeCabalFileAllTargets :: FlagAssignment
                            -> Maybe Version
                            -> B.ByteString
                            -> Version
 analyzeCabalFileAllTargets flags baseVersionConstraint cabalFile =
     case parseGenericPackageDescriptionMaybe cabalFile of
-        Nothing -> throwVabalError "Error while parsing cabal file."
+        Nothing -> cannotParseCabalFileError
         Just pkgDescr -> {-# SCC "vabal-core" #-}
             let otherBaseConstraints = maybe anyVersion thisVersion baseVersionConstraint
 
@@ -141,9 +120,9 @@ analyzeCabalFileAllTargets flags baseVersionConstraint cabalFile =
                 compilerVersions = map (uncurry $ findCompilerVersion flags pkgDescr) candidates
 
             -- Get first success, if any
-            in case msum compilerVersions of
-                Nothing -> throwVabalError "Error, could not satisfy constraints."
-                Just version -> version
+            in fromMaybe unableToSatisfyConstraintsError
+                         (msum compilerVersions)
+                
 
 checkIfGivenVersionWorksForAllTargets :: FlagAssignment
                                       -> B.ByteString
@@ -151,11 +130,11 @@ checkIfGivenVersionWorksForAllTargets :: FlagAssignment
                                       -> Bool
 checkIfGivenVersionWorksForAllTargets flags cabalFile selectedGhcVersion =
     case parseGenericPackageDescriptionMaybe cabalFile of
-        Nothing -> throwVabalError "Error while parsing cabal file."
+        Nothing -> cannotParseCabalFileError
         Just pkgDescr ->
             let ghc = makeCompilerInfo selectedGhcVersion
             in case constraintsForBase flags pkgDescr anyVersion ghc of
-                Nothing -> throwVabalError "Error, could not satisfy constraints."
+                Nothing -> unableToSatisfyConstraintsError
                 Just suggestedVersionRange ->
                     -- Check if the selected ghc is one of the suggested ones
                     selectedGhcVersion `elem` ghcVersionsIn suggestedVersionRange

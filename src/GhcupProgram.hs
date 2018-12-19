@@ -2,17 +2,14 @@ module GhcupProgram where
 
 import Data.List (intercalate)
 
-import System.Process
-import System.Exit
 import System.Directory
-import System.IO
 import Control.Exception (SomeException, catch)
 import System.FilePath
 import System.Environment (lookupEnv)
 
 import Distribution.Version
 
-import Control.Monad (when)
+import Control.Monad (unless)
 
 import Data.Maybe (fromMaybe)
 
@@ -21,11 +18,9 @@ import VabalError
 import System.Process
 import System.Exit
 
-import Debug.Trace
-
 runExternalProcess :: FilePath -> [String] -> IO ExitCode
 runExternalProcess bin args = do
-    let processDescr = (proc bin args)
+    let processDescr = proc bin args
     (_, _, _, procHandle) <- createProcess processDescr
     waitForProcess procHandle
 
@@ -60,7 +55,7 @@ checkGhcInPath version = catch checkGhcAndGetPath noGhcFound
               if version == ghcVersion then
                   -- if the previos command didn't fail,
                   -- it's *almost* sure this one won't fail
-                  Just <$> removeTrailingNewlines <$> readCreateProcess (shell "command -v ghc") ""
+                  Just . removeTrailingNewlines <$> readCreateProcess (shell "command -v ghc") ""
               else
                   return Nothing
 
@@ -76,7 +71,7 @@ requireGHC ghcVersion noInstall = do
         Just path -> return path
         Nothing -> do
             ghcAlreadyInstalled <- versionAlreadyInstalled version
-            when (not ghcAlreadyInstalled) $ do
+            unless ghcAlreadyInstalled $
                 if noInstall then
                     throwVabalErrorIO "Required GHC version is not available on the system."
                 else do

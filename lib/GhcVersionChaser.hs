@@ -41,16 +41,14 @@ module GhcVersionChaser
 
 import Distribution.Version
 import Distribution.Compiler
-import Distribution.Types.VersionRange
 import Distribution.Types.CondTree
 import Distribution.Types.Condition
 import Distribution.Types.GenericPackageDescription
 
 import Data.Ord (comparing, Down(..))
-import Data.List (nub, find, sortBy)
-import Data.Maybe (catMaybes, maybeToList)
+import Data.List (nub, sortBy)
+import Data.Maybe (mapMaybe, maybeToList)
 import Data.Function (on)
-import Debug.Trace
 
 import GhcDatabase
 
@@ -83,8 +81,8 @@ extractGhcConditions =
           analyzeCond (Var (Impl GHC vr)) = [vr]
           analyzeCond (Var _)             = []
           analyzeCond (CNot c) = analyzeCond c
-          analyzeCond (COr c1 c2) = (analyzeCond c1) ++ (analyzeCond c2)
-          analyzeCond (CAnd c1 c2) = (analyzeCond c1) ++ (analyzeCond c2)
+          analyzeCond (COr c1 c2) = analyzeCond c1 ++ analyzeCond c2
+          analyzeCond (CAnd c1 c2) = analyzeCond c1 ++ analyzeCond c2
 
 
 ghcConditions :: GenericPackageDescription -> [GhcVersionRangeCondition]
@@ -127,8 +125,7 @@ allTruthAssignments vars =
               return (newAssignment : otherAssignments)
 
 truthAssignmentToGhcVersion :: VersionRangeConditionTruthAssignment -> Maybe Version
-truthAssignmentToGhcVersion versionRangeAssignment =
-    newestGhcVersionIn versionRangeAssignment
+truthAssignmentToGhcVersion = newestGhcVersionIn
 
 truthAssignmentToBaseVersionRange :: VersionRangeConditionTruthAssignment -> VersionRange
 truthAssignmentToBaseVersionRange versionRangeAssignment =
@@ -147,8 +144,8 @@ truthAssignmentToGhcAssignment ass =
 ghcAssignments :: VersionRange -> [GhcVersionRangeCondition] -> [GhcAssignment]
 ghcAssignments otherBaseConstraints =
     sortBy (comparing Down `on` snd) -- Sort, so that newest ghc are tried first
-  . catMaybes -- Ignore impossible constraints
-  . map truthAssignmentToGhcAssignment
+  {-# HLINT ignore "Fuse mapMaybe/map" #-}
+  . mapMaybe truthAssignmentToGhcAssignment -- Ignore impossible constraints
   . map (otherBaseConstraints `intersectVersionRanges`) -- Add other imposed constraints
   . allTruthAssignments
   . nub -- TODO: Probably use a Set

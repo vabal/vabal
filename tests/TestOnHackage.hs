@@ -2,9 +2,7 @@ module Main where
 
 import qualified Codec.Archive.Tar as Tar
 import qualified Data.ByteString.Lazy as Lazy
-import qualified Data.ByteString as B
 
-import Distribution.Version
 import Distribution.Types.GenericPackageDescription
 
 import System.FilePath
@@ -13,22 +11,17 @@ import System.Directory
 import CabalAnalyzer
 
 import Control.Exception
-
-import Control.Monad (void)
-
 import Control.DeepSeq
-
-import qualified Data.Map.Lazy as M
 
 cabalAnalyzer :: (FilePath, Lazy.ByteString) -> IO Bool
 cabalAnalyzer (path, pkg) = do
     let fun = return . analyzeCabalFileAllTargets (mkFlagAssignment []) Nothing . Lazy.toStrict
 
     let errorHandler :: SomeException -> IO Bool
-        errorHandler ex = do
+        errorHandler _ = do
             putStrLn path
             return False
-    (flip catch) errorHandler $ do
+    handle errorHandler $ do
         res <- fun pkg
         res `deepseq` return True
 

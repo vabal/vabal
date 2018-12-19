@@ -2,8 +2,6 @@ module Main where
     
 import System.Directory
 import System.FilePath
-import System.Process
-import System.Environment (getArgs)
 
 import Control.Exception
 import System.Exit
@@ -11,17 +9,12 @@ import System.Exit
 import VabalError
 import CabalAnalyzer
 
-import Data.List (find)
-import Control.Monad (when)
+import Control.Monad (unless)
 
 import GhcupProgram
 import UserInterface
 
-import System.TimeIt
-
 import Distribution.Types.GenericPackageDescription
-import Distribution.Verbosity
-import Distribution.PackageDescription.Parsec
 import Distribution.Types.Version
 import Distribution.Parsec.Class
 import Distribution.Parsec.FieldLineStream (fieldLineStreamFromString)
@@ -30,17 +23,14 @@ import qualified Data.ByteString as B
 
 import Options.Applicative
 
-withExceptionHandler :: Exception e => (e -> IO a) -> IO a -> IO a
-withExceptionHandler = flip catch
-
 versionParser :: ReadM Version
 versionParser = maybeReader simpleParsec
 
 flagAssignmentParser :: ReadM FlagAssignment
-flagAssignmentParser = maybeReader $ \str ->
+flagAssignmentParser = maybeReader $ \flagsString ->
     either (const Nothing) Just $
         runParsecParser parsecFlagAssignment "<flagParsec>"
-                        (fieldLineStreamFromString str)
+                        (fieldLineStreamFromString flagsString)
 
 data VersionSpecification = GhcVersion Version
                           | BaseVersion Version
@@ -126,36 +116,42 @@ main = do
             writeError $ show ex
             exitWith (ExitFailure 1)
 
-    catch (vabalConfigure args) errorHandler
+    catch (vabalMain args) errorHandler
     return ()
 
-vabalConfigure :: Arguments -> IO ()
-vabalConfigure args = do
+vabalMain :: Arguments -> IO ()
+vabalMain args = do
 
     cabalFilePath <- maybe findCabalFile return (cabalFile args)
 
-    cabalFile <- B.readFile cabalFilePath
+    cabalFileContents <- B.readFile cabalFilePath
 
     let flags = configFlags args
 
     version <- case versionSpecification args of
                     GhcVersion ghcVersion -> do
-                        res <- return $ checkIfGivenVersionWorksForAllTargets flags cabalFile ghcVersion
-                        when (not res) $
+                        let res = checkIfGivenVersionWorksForAllTargets flags
+                                                                        cabalFileContents
+                                                                        ghcVersion
+                        unless res $
                             writeWarning "Warning: The specified ghc version probably won't work."
                         return ghcVersion
 
-                    BaseVersion baseVersion -> return $ analyzeCabalFileAllTargets flags (Just baseVersion) cabalFile
+                    BaseVersion baseVersion -> return $
+                                  analyzeCabalFileAllTargets flags
+                                                             (Just baseVersion)
+                                                             cabalFileContents
 
-                    NoSpecification -> return $ analyzeCabalFileAllTargets flags Nothing cabalFile
+                    NoSpecification -> return $
+                                  analyzeCabalFileAllTargets flags
+                                                             Nothing
+                                                             cabalFileContents
 
-
-    writeMessage $ "Selected GHC version: " ++ show version
 
     ghcLocation <- requireGHC version (noInstallFlag args)
 
+    writeMessage $ "Selected GHC version: " ++ prettyPrintVersion version
     writeOutput ghcLocation
-    return ()
 
 
 findCabalFile :: IO FilePath
@@ -165,5 +161,5 @@ findCabalFile = do
     let cabalFiles = filter (\c -> takeExtension c == ".cabal") childs
     case cabalFiles of
         [] -> throwVabalErrorIO "No cabal file found."
-        (cf:cfs) -> return cf
+        (cf:_) -> return cf
 
