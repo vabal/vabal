@@ -21,6 +21,7 @@ import VabalError
 import System.Process
 import System.Exit
 
+import Debug.Trace
 
 runExternalProcess :: FilePath -> [String] -> IO ExitCode
 runExternalProcess bin args = do
@@ -28,9 +29,8 @@ runExternalProcess bin args = do
     (_, _, _, procHandle) <- createProcess processDescr
     waitForProcess procHandle
 
-data GhcLocation = CustomLocation FilePath
-                 | InPath
-
+removeTrailingNewlines :: String -> String
+removeTrailingNewlines = reverse . dropWhile (== '\n') . reverse
 
 prettyPrintVersion :: Version -> String
 prettyPrintVersion ver = intercalate "." $ map show (versionNumbers ver)
@@ -40,55 +40,57 @@ trimVersionString = dropWhile (== ' ')
 
 versionAlreadyInstalled :: String -> IO Bool
 versionAlreadyInstalled version = do
-    let processDescr = (proc "ghcup" ["show"])
-                     { std_out = CreatePipe
-                     }
+    output <- readProcess "ghcup" ["show"] ""
 
-    (_, Just outHandle, _, _) <- createProcess processDescr
-    hGetLine outHandle -- Ignore header
-    installedVersions <- (map trimVersionString . lines) <$> hGetContents outHandle
+    let installedVersions = map trimVersionString
+                          . tail -- Ignore line containing the header
+                          . lines
+                          $ output
+
     return $ version `elem` installedVersions
 
 
-checkGhcInPath :: String  -> IO Bool
-checkGhcInPath version = catch getGhcVersion noGhcFound
-    where noGhcFound :: SomeException -> IO Bool
-          noGhcFound _ = return False
+checkGhcInPath :: String  -> IO (Maybe FilePath)
+checkGhcInPath version = catch checkGhcAndGetPath noGhcFound
+    where noGhcFound :: SomeException -> IO (Maybe FilePath)
+          noGhcFound _ = return Nothing
 
-          getGhcVersion = do
-              let procDescr = (proc "ghc" ["--numeric-version"])
-                              { std_out = CreatePipe
-                              }
-
-              (_, Just outHandle, _, _) <- createProcess procDescr
-              ghcVersion <- hGetLine outHandle
-              return $ version == ghcVersion
+          checkGhcAndGetPath = do
+              ghcVersion <- removeTrailingNewlines <$> readProcess "ghc" ["--numeric-version"] ""
+              if version == ghcVersion then
+                  -- if the previos command didn't fail,
+                  -- it's *almost* sure this one won't fail
+                  Just <$> removeTrailingNewlines <$> readCreateProcess (shell "command -v ghc") ""
+              else
+                  return Nothing
 
 -- Asks ghcup to get the provided version for ghc,
 -- It'll return the file path of the downloaded ghc.
 -- If an error occurs a VabalError is thrown.
-requireGHC :: Version -> Bool -> IO GhcLocation
+requireGHC :: Version -> Bool -> IO FilePath
 requireGHC ghcVersion noInstall = do
     let version = prettyPrintVersion ghcVersion
-    ghcInPathIsFine <- checkGhcInPath version
-    if ghcInPathIsFine then
-        return InPath
-    else do
-        ghcAlreadyInstalled <- versionAlreadyInstalled version
-        when (not ghcAlreadyInstalled) $ do
-            if noInstall then
-                throwVabalErrorIO "Required GHC version is not available on the system."
-            else do
-                res <- runExternalProcess "ghcup" ["install", version]
-                case res of
-                    ExitFailure _ -> throwVabalErrorIO "Error while installing ghc."
-                    ExitSuccess   -> return ()
+    ghcPath <- checkGhcInPath version
 
-        -- ghcup's install directory can be customized through the use of
-        -- the GHCUP_INSTALL_BASE_PREFIX env variabile.
-        -- If it is not set, its default value is $HOME
-        homeDir <- getHomeDirectory
-        ghcupInstallBasePrefix <- fromMaybe homeDir <$> lookupEnv "GHCUP_INSTALL_BASE_PREFIX"
+    case ghcPath of
+        Just path -> return path
+        Nothing -> do
+            ghcAlreadyInstalled <- versionAlreadyInstalled version
+            when (not ghcAlreadyInstalled) $ do
+                if noInstall then
+                    throwVabalErrorIO "Required GHC version is not available on the system."
+                else do
+                    res <- runExternalProcess "ghcup" ["install", version]
+                    case res of
+                        ExitFailure _ -> throwVabalErrorIO "Error while installing ghc."
+                        ExitSuccess   -> return ()
 
-        return . CustomLocation $ ghcupInstallBasePrefix </> ".ghcup" </> "ghc" </> version </> "bin" </> "ghc"
+            -- ghcup's install directory can be customized through the use of
+            -- the GHCUP_INSTALL_BASE_PREFIX env variabile.
+            -- If it is not set, its default value is $HOME
+            homeDir <- getHomeDirectory
+            ghcupInstallBasePrefix <- fromMaybe homeDir
+                                      <$> lookupEnv "GHCUP_INSTALL_BASE_PREFIX"
+
+            return $ ghcupInstallBasePrefix </> ".ghcup" </> "ghc" </> version </> "bin" </> "ghc"
 

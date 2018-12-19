@@ -11,7 +11,8 @@ Have you ever upgraded GHC just to find all your haskell projects broken?
 Have you ever dreamt about treating `base` as all other packages (i.e. change its version without much thought)?
 
 `vabal` tries to determine a `ghc` version that complies with the `base` package constraints found in the `.cabal` file.
-Then it uses [ghcup](https://github.com/haskell/ghcup) to fetch the compiler (if you don't have it yet) and configures the project to use it.
+Then it uses [ghcup](https://github.com/haskell/ghcup) to fetch the compiler (if you don't have it yet)
+and prints to stdout the path to the fetched compiler.
 
 This program tries to solve these issues in the easiest possible way.
 The GHC compiler downloading is managed by [ghcup](https://github.com/haskell/ghcup).
@@ -19,8 +20,8 @@ No need to manually manage different ghc versions by hand!
 
 `vabal` tries to be as little intrusive as possible, leverages `cabal`'s capabilities of working with different GHC versions,
 and does *not* force you in its paradigm.
-At its core `vabal` just edits `cabal.project.local`, which you can then modify as you wish;
-you are always in charge of what is happening!
+The only change to the global system state `vabal` does is to tell `ghcup` to download a compiler,
+this behavior can be disabled with `--no-install` flag, so you are always in charge of what's happening!
 
 
  Requirements
@@ -31,25 +32,34 @@ These programs are required to be in `PATH`:
 - ghcup
 
 
- How to use it
+ Quick start
 --------------
 
-First cd into your project directory:
-
-> $ cd my-project/
-
-Then run:
+Running inside your project directory:
 
 > vabal
 
-This will find out which GHC version is needed to build the project and then runs `cabal new-configure`
-telling it which compiler to use and where to find it.
+will make `vabal` find out which GHC versions is needed to build the project and obtain it,
+then it will print to stdout the path to the obtained GHC compiler.
 
-That is it! You can now use `cabal` as you are accustomed to:
+This can be combined with `cabal`'s -w options.
+So to build the project using the detected compiler, you can run:
 
-> cabal new-build
+> cabal new-build -w $(vabal)
 
-Now your project builds with the configured compiler and you will not get `base` version errors anymore!
+If you want to use the chosen compiler persistently,
+you can just configure the project to use it, like this:
+
+> cabal new-configure -w $(vabal)
+
+That is it! Now your project with build with the configured compiler and you will not get `base` version errors anymore!
+
+NB: The `$(vabal)` syntax is command substitution in `sh` and `bash` shells, it will replace `$(vabal)` with `vabal`'s output
+(for example `cabal new-build -w $(vabal)` becomes `cabal new-build -w /path/to/nice/ghc/version/ghc`)
+
+If you are using `fish` shell command substitution is done like this: `cabal new-build (vabal)`.
+
+Consult your shell's manual to see how command substitution is done.
 
 
  Program usage
@@ -61,8 +71,8 @@ vabal - The Cabal Companion
 Usage: vabal ([-g|--with-ghc-version VER] | [-b|--with-base-version VER])
              [--flags FLAGS] [--cabal-file FILE] [--no-install]
   Find out a version of the GHC compiler that satisfies the constraints imposed
-  on base in the cabal project. then configure the cabal project to use this
-  version of the compiler.
+  on base in the cabal project. Then print to stdout the path to a GHC compiler
+  with that version (potentially downloading it).
 
 Available options:
   -g,--with-ghc-version VER

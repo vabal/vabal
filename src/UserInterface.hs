@@ -5,7 +5,7 @@ import System.IO (hPutStrLn, stderr)
 -- TODO: Add colors etc
 
 writeMessage :: String -> IO ()
-writeMessage = putStrLn
+writeMessage = hPutStrLn stderr
 
 writeWarning :: String -> IO ()
 writeWarning = putStrLn

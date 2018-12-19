@@ -49,9 +49,9 @@ data VersionSpecification = GhcVersion Version
 
 data Arguments = Arguments
                { versionSpecification :: VersionSpecification
-               , configFlags :: FlagAssignment
-               , cabalFile   :: Maybe FilePath
-               , noInstall   :: Bool
+               , configFlags          :: FlagAssignment
+               , cabalFile            :: Maybe FilePath
+               , noInstallFlag        :: Bool
                }
                deriving(Show)
 
@@ -116,8 +116,8 @@ main = do
              <> header "vabal - The Cabal Companion"
              <> progDesc "Find out a version of the GHC compiler that satisfies \
                          \ the constraints imposed on base in the cabal project. \
-                         \ then configure the cabal project \
-                         \ to use this version of the compiler."
+                         \ Then print to stdout the path to a GHC compiler \
+                         \ with that version (potentially downloading it)."
              )
 
     args <- execParser opts
@@ -150,15 +150,11 @@ vabalConfigure args = do
                     NoSpecification -> return $ analyzeCabalFileAllTargets flags Nothing cabalFile
 
 
-    putStrLn "Das version: "
-    print version
+    writeMessage $ "Selected GHC version: " ++ show version
 
-    -- exitWith ExitSuccess
+    ghcLocation <- requireGHC version (noInstallFlag args)
 
-    path <- requireGHC version (noInstall args)
-
-    writeOutput path
-
+    writeOutput ghcLocation
     return ()
 
 
