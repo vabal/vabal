@@ -123,6 +123,9 @@ main = do
     let errorHandler :: SomeException -> IO ()
         errorHandler ex = do
             writeError $ show ex
+            writeError "WARNING: If you used vabal within a command substitution \
+                       \ be careful because cabal may have used \
+                       \ something else as PATH to ghc (e.g. the next argument)."
             exitWith (ExitFailure 1)
 
     catch (vabalMain args) errorHandler

@@ -44,7 +44,8 @@ Running inside your project directory:
 will make `vabal` find out which GHC versions is needed to build the project and obtain it,
 then it will print to stdout the path to the obtained GHC compiler.
 
-This can be combined with `cabal`'s -w options.
+Now you can either copy the output of `vabal` and pass it as argument to `cabal` using the `-w` flag
+or you can combine `vabal` with `cabal`'s -w options using command substitution.
 So to build the project using the detected compiler, you can run:
 
 > cabal new-build -w "$(vabal)"
@@ -69,7 +70,7 @@ NB:
 ----------
 
 Here are some known gotchas that affect `vabal`:
-- vabal trusts the constraints imposed on `base` that it finds in the cabal file,
+- `vabal` trusts the constraints imposed on `base` that it finds in the cabal file,
 therefore it only finds a ghc version that makes it possible to respect the constraints,
 but it is not guaranteed that the build will be successful. (Generally one should always write correct constraints)
 
@@ -77,6 +78,8 @@ but it is not guaranteed that the build will be successful. (Generally one shoul
 once to pass them to cabal and once for vabal: `cabal new-configure -fmyflag -w "$(vabal --flags='myflag')"`.
 The same thing goes for the `--cabal-file` flag.
 
+- when `vabal` fails, the behvior of command substitution can be a bit awkward,
+but nevertheless you get an error message that indicates something went wrong.
 
  Program usage
 ---------------
