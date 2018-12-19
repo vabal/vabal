@@ -1,6 +1,5 @@
 module GhcupProgram where
 
-import ProcessUtils
 import Data.List (intercalate)
 
 import System.Process
@@ -19,9 +18,18 @@ import Data.Maybe (fromMaybe)
 
 import VabalError
 
+import System.Process
+import System.Exit
+
+
+runExternalProcess :: FilePath -> [String] -> IO ExitCode
+runExternalProcess bin args = do
+    let processDescr = (proc bin args)
+    (_, _, _, procHandle) <- createProcess processDescr
+    waitForProcess procHandle
+
 data GhcLocation = CustomLocation FilePath
                  | InPath
-
 
 
 prettyPrintVersion :: Version -> String

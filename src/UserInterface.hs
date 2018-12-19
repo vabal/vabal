@@ -12,3 +12,6 @@ writeWarning = putStrLn
 
 writeError :: String -> IO ()
 writeError = hPutStrLn stderr
+
+writeOutput :: String -> IO ()
+writeOutput = putStrLn

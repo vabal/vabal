@@ -14,11 +14,7 @@ import CabalAnalyzer
 import Data.List (find)
 import Control.Monad (when)
 
-import ProcessUtils
-import FlagsUtils
-
 import GhcupProgram
-
 import UserInterface
 
 import System.TimeIt
@@ -161,26 +157,10 @@ vabalConfigure args = do
 
     path <- requireGHC version (noInstall args)
 
-    runCabalConfigure flags path
+    writeOutput path
 
     return ()
 
-
--- Run cabal new-configure with the given compiler version
--- If The filepath is Nothing, then use the ghc in path
-runCabalConfigure :: FlagAssignment -> GhcLocation -> IO ()
-runCabalConfigure flags ghcLoc = do
-    writeMessage "Running cabal new-configure."
-
-    let args = case ghcLoc of
-            InPath                 -> ["new-configure"]
-            CustomLocation ghcLoc  -> ["new-configure", "-w", ghcLoc ]
-
-    let argsPlusFlags = args ++ makeCabalArguments flags
-    res <- runExternalProcess "cabal" argsPlusFlags
-    case res of
-        ExitSuccess -> return ()
-        ExitFailure _ -> throwVabalErrorIO "Error while running cabal configure."
 
 findCabalFile :: IO FilePath
 findCabalFile = do
