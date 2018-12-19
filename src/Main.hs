@@ -23,6 +23,8 @@ import qualified Data.ByteString as B
 
 import Options.Applicative
 
+import Prelude hiding (putStrLn)
+
 versionParser :: ReadM Version
 versionParser = maybeReader simpleParsec
 
@@ -136,8 +138,6 @@ vabalMain args = do
     let flags = configFlags args
 
     availableGhcs <- getAvailableGhcs
-
-    print availableGhcs
 
     version <- case versionSpecification args of
                     GhcVersion ghcVersion -> do
