@@ -143,7 +143,7 @@ truthAssignmentToGhcAssignment ass =
 
 ghcAssignments :: VersionRange -> [GhcVersionRangeCondition] -> [GhcAssignment]
 ghcAssignments otherBaseConstraints =
-    sortBy (comparing Down `on` snd) -- Sort, so that newest ghc are tried first
+    sortBy (comparing Down `on` snd) -- Sort so that newest ghcs are tried first
   {-# HLINT ignore "Fuse mapMaybe/map" #-}
   . mapMaybe truthAssignmentToGhcAssignment -- Ignore impossible constraints
   . map (otherBaseConstraints `intersectVersionRanges`) -- Add other imposed constraints

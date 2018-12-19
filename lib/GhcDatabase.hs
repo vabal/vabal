@@ -4,10 +4,12 @@ module GhcDatabase
 , newestGhcVersionIn  -- :: VersionRange -> Maybe GhcVersion
 , baseVersionsIn      -- :: VersionRange -> [BaseVersion]
 , newestBaseVersionIn -- :: VersionRange -> Maybe GhcVersion
+, baseVersionForGhc   -- :: GhcVersion -> Maybe BaseVersion
 ) where
 
 import Distribution.Version
 import Data.Maybe (listToMaybe)
+import Data.List (find)
 
 type GhcVersion = Version
 type BaseVersion = Version
@@ -19,6 +21,7 @@ baseToGhcMap =
     [ (mkVersion [4,12,0,0], mkVersion [8,6,3])
     , (mkVersion [4,12,0,0], mkVersion [8,6,2])
     , (mkVersion [4,12,0,0], mkVersion [8,6,1])
+    , (mkVersion [4,11,1,0], mkVersion [8,4,4])
     , (mkVersion [4,11,1,0], mkVersion [8,4,3])
     , (mkVersion [4,11,1,0], mkVersion [8,4,2])
     , (mkVersion [4,11,0,0], mkVersion [8,4,1])
@@ -68,3 +71,6 @@ baseVersionsIn vr = fst <$> filter (isVersionInRange vr . fst) baseToGhcMap
 
 newestBaseVersionIn :: VersionRange -> Maybe BaseVersion
 newestBaseVersionIn = listToMaybe . baseVersionsIn
+
+baseVersionForGhc :: GhcVersion -> Maybe BaseVersion
+baseVersionForGhc v = fst <$> find ((v ==) . snd) baseToGhcMap

@@ -42,6 +42,7 @@ data Arguments = Arguments
                , configFlags          :: FlagAssignment
                , cabalFile            :: Maybe FilePath
                , noInstallFlag        :: Bool
+               , alwaysNewestFlag     :: Bool
                }
                deriving(Show)
 
@@ -98,6 +99,11 @@ argsParser = pure Arguments
                ( long "no-install"
                <> help "If GHC needs to be downloaded, fail, instead."
                )
+           <*> switch
+               ( long "always-newest"
+               <> help "Always choose newest GHC possible, don't prefer \
+                       \ already installed GHCs"
+               )
 
 main :: IO ()
 main = do
@@ -105,7 +111,8 @@ main = do
              ( fullDesc
              <> header "vabal - The Cabal Companion"
              <> progDesc "Find out a version of the GHC compiler that satisfies \
-                         \ the constraints imposed on base in the cabal project. \
+                         \ the constraints imposed on base in the cabal project \
+                         \ (By default already installed GHCs are preferred). \
                          \ Then print to stdout the path to a GHC compiler \
                          \ with that version (potentially downloading it)."
              )
@@ -128,6 +135,10 @@ vabalMain args = do
 
     let flags = configFlags args
 
+    availableGhcs <- getAvailableGhcs
+
+    print availableGhcs
+
     version <- case versionSpecification args of
                     GhcVersion ghcVersion -> do
                         let res = checkIfGivenVersionWorksForAllTargets flags
@@ -139,16 +150,20 @@ vabalMain args = do
 
                     BaseVersion baseVersion -> return $
                                   analyzeCabalFileAllTargets flags
+                                                             (alwaysNewestFlag args)
+                                                             availableGhcs
                                                              (Just baseVersion)
                                                              cabalFileContents
 
                     NoSpecification -> return $
                                   analyzeCabalFileAllTargets flags
+                                                             (alwaysNewestFlag args)
+                                                             availableGhcs
                                                              Nothing
                                                              cabalFileContents
 
 
-    ghcLocation <- requireGHC version (noInstallFlag args)
+    ghcLocation <- requireGHC availableGhcs version (noInstallFlag args)
 
     writeMessage $ "Selected GHC version: " ++ prettyPrintVersion version
     writeOutput ghcLocation

@@ -18,12 +18,13 @@ import Distribution.Types.PackageName
 import Distribution.System
 import Distribution.Compiler
 
-
-import Data.Maybe (fromMaybe, maybeToList)
+import Data.Maybe (mapMaybe, fromMaybe, maybeToList)
 
 import qualified Data.ByteString as B
 
-import Control.Monad (msum)
+import Control.Monad (mplus, msum)
+import Data.List (find, sortOn)
+import Data.Ord (Down(..))
 
 import VabalError
 
@@ -92,37 +93,61 @@ constraintsForBase flags pkgDescr otherBaseConstraints compiler =
 
 
 -- Find compiler version satisfying the imposed constraints
-findCompilerVersion :: FlagAssignment
-                    -> GenericPackageDescription
-                    -> VersionRange
-                    -> CompilerInfo
-                    -> Maybe Version
-findCompilerVersion flags pkgDescr otherBaseConstraints ghc = do
-    versionRange <- constraintsForBase flags pkgDescr otherBaseConstraints ghc
-    newestGhcVersionIn versionRange
+findNewestCompilerVersion :: VersionRange -> Maybe Version
+findNewestCompilerVersion = newestGhcVersionIn
 
+findAvailableCompilerVersion :: [(Version, Version)] -> VersionRange -> Maybe Version
+findAvailableCompilerVersion availableGhcs versionRange =
+    snd <$> find ((`withinRange` versionRange) . fst) availableGhcs
+
+
+ghcVersionWithAssociatedBase :: Version -> Maybe (Version, Version)
+ghcVersionWithAssociatedBase ghcVer = case baseVersionForGhc ghcVer of
+                                          Nothing -> Nothing
+                                          Just baseVer -> Just (baseVer, ghcVer)
 
 analyzeCabalFileAllTargets :: FlagAssignment
+                           -> Bool
+                           -> [Version]
                            -> Maybe Version
                            -> B.ByteString
                            -> Version
-analyzeCabalFileAllTargets flags baseVersionConstraint cabalFile =
+analyzeCabalFileAllTargets flags alwaysNewestGhc availableGhcs baseVersionConstraint cabalFile =
     case parseGenericPackageDescriptionMaybe cabalFile of
         Nothing -> cannotParseCabalFileError
         Just pkgDescr -> {-# SCC "vabal-core" #-}
             let otherBaseConstraints = maybe anyVersion thisVersion baseVersionConstraint
 
-            -- Get all the ghc we should try
-            -- Each candidate is a pair (BaseConstraints, CompilerInfo)
+                -- Get all the ghc we should try
+                -- Each candidate is a pair (BaseConstraints, CompilerInfo)
                 candidates = map (fmap makeCompilerInfo) -- turn a GhcVersion in CompilerInfo
                            $ findGhcVersions otherBaseConstraints pkgDescr
 
-                compilerVersions = map (uncurry $ findCompilerVersion flags pkgDescr) candidates
+                allBaseConstraints = map (uncurry $ constraintsForBase flags pkgDescr) candidates
 
-            -- Get first success, if any
-            in fromMaybe unableToSatisfyConstraintsError
-                         (msum compilerVersions)
-                
+                -- Ghc versions with associated base version
+                -- sorted from the newest to the oldest ghc version.
+                -- WARNING: Ghcs we don't recognize are just ignored, this can be dangerous
+                availableGhcs' = mapMaybe ghcVersionWithAssociatedBase
+                               . sortOn Down
+                               $ availableGhcs
+
+                newestGhcCandidate =
+                        -- Get first compatible compiler
+                        msum $ map (>>= findNewestCompilerVersion) allBaseConstraints
+
+                availableGhcCandidate = 
+                        -- Get first compatible compiler, amongst the available
+                        msum $ map (>>= findAvailableCompilerVersion availableGhcs') allBaseConstraints
+
+                ghcCandidate =
+                    if alwaysNewestGhc then
+                        newestGhcCandidate
+                    else
+                        -- If no available ghc is good, just find the newest
+                        availableGhcCandidate `mplus` newestGhcCandidate
+
+            in fromMaybe unableToSatisfyConstraintsError ghcCandidate
 
 checkIfGivenVersionWorksForAllTargets :: FlagAssignment
                                       -> B.ByteString

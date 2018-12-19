@@ -7,6 +7,8 @@ import Control.Exception (SomeException, catch)
 import System.FilePath
 import System.Environment (lookupEnv)
 
+import Distribution.Parsec.Class
+
 import Distribution.Version
 
 import Control.Monad (unless)
@@ -33,16 +35,20 @@ prettyPrintVersion ver = intercalate "." $ map show (versionNumbers ver)
 trimVersionString :: String -> String
 trimVersionString = dropWhile (== ' ')
 
-versionAlreadyInstalled :: String -> IO Bool
-versionAlreadyInstalled version = do
+unableToReadGhcupOutputError :: a
+unableToReadGhcupOutputError = throwVabalError "Could not parse ghcup output."
+
+getAvailableGhcs :: IO [Version]
+getAvailableGhcs = do
     output <- readProcess "ghcup" ["show"] ""
 
     let installedVersions = map trimVersionString
                           . tail -- Ignore line containing the header
+                          . takeWhile (not . null)
                           . lines
                           $ output
 
-    return $ version `elem` installedVersions
+    return $ map (fromMaybe unableToReadGhcupOutputError . simpleParsec) installedVersions
 
 
 checkGhcInPath :: String  -> IO (Maybe FilePath)
@@ -62,15 +68,15 @@ checkGhcInPath version = catch checkGhcAndGetPath noGhcFound
 -- Asks ghcup to get the provided version for ghc,
 -- It'll return the file path of the downloaded ghc.
 -- If an error occurs a VabalError is thrown.
-requireGHC :: Version -> Bool -> IO FilePath
-requireGHC ghcVersion noInstall = do
+requireGHC :: [Version] -> Version -> Bool -> IO FilePath
+requireGHC availableGhcs ghcVersion noInstall = do
     let version = prettyPrintVersion ghcVersion
     ghcPath <- checkGhcInPath version
 
     case ghcPath of
         Just path -> return path
         Nothing -> do
-            ghcAlreadyInstalled <- versionAlreadyInstalled version
+            let ghcAlreadyInstalled = ghcVersion `elem` availableGhcs
             unless ghcAlreadyInstalled $
                 if noInstall then
                     throwVabalErrorIO "Required GHC version is not available on the system."

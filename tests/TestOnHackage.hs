@@ -15,7 +15,7 @@ import Control.DeepSeq
 
 cabalAnalyzer :: (FilePath, Lazy.ByteString) -> IO Bool
 cabalAnalyzer (path, pkg) = do
-    let fun = return . analyzeCabalFileAllTargets (mkFlagAssignment []) Nothing . Lazy.toStrict
+    let fun = return . analyzeCabalFileAllTargets (mkFlagAssignment []) False [] Nothing . Lazy.toStrict
 
     let errorHandler :: SomeException -> IO Bool
         errorHandler _ = do

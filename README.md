@@ -14,6 +14,9 @@ Have you ever dreamt about treating `base` as all other packages (i.e. change it
 Then it uses [ghcup](https://github.com/haskell/ghcup) to fetch the compiler (if you don't have it yet)
 and prints to stdout the path to the fetched compiler.
 
+By default `vabal` tries to use compilers already available on the system
+and downloads them only when it can't do otherwise (or fails if you use the `--no-install` flag).
+
 This program tries to solve these issues in the easiest possible way.
 The GHC compiler downloading is managed by [ghcup](https://github.com/haskell/ghcup).
 No need to manually manage different ghc versions by hand!
@@ -83,9 +86,11 @@ vabal - The Cabal Companion
 
 Usage: vabal ([-g|--with-ghc-version VER] | [-b|--with-base-version VER])
              [--flags FLAGS] [--cabal-file FILE] [--no-install]
+             [--always-newest]
   Find out a version of the GHC compiler that satisfies the constraints imposed
-  on base in the cabal project. Then print to stdout the path to a GHC compiler
-  with that version (potentially downloading it).
+  on base in the cabal project (By default already installed GHCs are
+  preferred). Then print to stdout the path to a GHC compiler with that version
+  (potentially downloading it).
 
 Available options:
   -g,--with-ghc-version VER
@@ -104,6 +109,8 @@ Available options:
                            enabled).
   --cabal-file FILE        Explicitly tell which cabal file to use.
   --no-install             If GHC needs to be downloaded, fail, instead.
+  --always-newest          Always choose newest GHC possible, don't prefer
+                           already installed GHCs
   -h,--help                Show this help text
 ```
 
