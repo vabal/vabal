@@ -54,12 +54,13 @@ you can just configure the project to use it, like this:
 
 That is it! Now your project with build with the configured compiler and you will not get `base` version errors anymore!
 
-NB: The `$(vabal)` syntax is command substitution in `sh` and `bash` shells, it will replace `$(vabal)` with `vabal`'s output
-(for example `cabal new-build -w $(vabal)` becomes `cabal new-build -w /path/to/nice/ghc/version/ghc`)
-
-If you are using `fish` shell command substitution is done like this: `cabal new-build (vabal)`.
-
-Consult your shell's manual to see how command substitution is done.
+NB: 
+> The `$(vabal)` syntax is command substitution in `sh` and `bash` shells, it will replace `$(vabal)` with `vabal`'s output
+> (for example `cabal new-build -w $(vabal)` becomes `cabal new-build -w /path/to/nice/ghc/version/ghc`)
+>
+> If you are using `fish` shell command substitution is done like this: `cabal new-build (vabal)`.
+>
+> Consult your shell's manual to see how command substitution is done.
 
 
  Program usage
