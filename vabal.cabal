@@ -16,7 +16,7 @@ extra-source-files:  CHANGELOG.md
 cabal-version:       >=1.10
 
 library
-  exposed-modules:     CabalAnalyzer, VabalError, GhcDatabase, VabalContext
+  exposed-modules:     CabalAnalyzer, VabalError, GhcDatabase, VabalContext, XArgsEscape
   other-modules:       GhcVersionChaser
 
   build-depends:       base                 >= 4.11 && < 4.13,
@@ -56,8 +56,7 @@ test-suite test-on-hackage
   type:                exitcode-stdio-1.0
   main-is:             TestOnHackage.hs
 
-  build-depends:       base                 >=4.11 && < 4.13,
-                       -- ^ GHC             >= 8.4.1 && <= 8.6.2
+  build-depends:       base,
                        filepath             >= 1.4.2 && < 1.5,
                        Cabal                >= 2.4 && <2.5,
                        tar,
@@ -70,3 +69,14 @@ test-suite test-on-hackage
   ghc-options:         -Wall
   default-language:    Haskell2010
 
+test-suite xargs-escape-test
+  type:                exitcode-stdio-1.0
+  main-is:             TestXArgsEscapes.hs
+
+  build-depends:       base,
+                       process,
+                       vabal
+
+  hs-source-dirs:      tests/
+  ghc-options:         -Wall
+  default-language:    Haskell2010

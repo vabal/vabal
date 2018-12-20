@@ -10,6 +10,7 @@ import VabalError
 import CabalAnalyzer
 
 import Control.Monad (unless)
+import Data.List (intercalate)
 
 import GhcupProgram
 import UserInterface
@@ -26,6 +27,7 @@ import Options.Applicative
 
 import VabalContext
 import GhcMetadataDownloader
+import XArgsEscape
 
 import Prelude hiding (putStrLn)
 
@@ -205,7 +207,22 @@ vabalMain args = do
     ghcLocation <- requireGHC installedGhcs version (noInstallFlag args)
 
     writeMessage $ "Selected GHC version: " ++ prettyPrintVersion version
-    writeOutput ghcLocation
+
+    let flagsOutput = intercalate " "
+              . map showFlagValue $ unFlagAssignment (configFlags args)
+
+
+    let outputGhcLocationArg = "-w\n" ++ escapeForXArgs ghcLocation
+        outputFlagsArg = if null flagsOutput then
+                            ""
+                         else
+                           -- we don't escape flags because we are sure no invalid
+                           -- sequence is in them, since otherwise they weren't
+                           -- parsed when passed as arguments
+                           "--flags\n'" ++ flagsOutput ++ "'"
+
+        outputMessage = outputGhcLocationArg ++ "\n" ++ outputFlagsArg
+    writeOutput outputMessage
 
 
 findCabalFile :: IO FilePath
