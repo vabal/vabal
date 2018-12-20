@@ -219,9 +219,13 @@ vabalMain args = do
                            -- we don't escape flags because we are sure no invalid
                            -- sequence is in them, since otherwise they weren't
                            -- parsed when passed as arguments
-                           "--flags\n'" ++ flagsOutput ++ "'"
+                           "\n--flags\n'" ++ flagsOutput ++ "'"
 
-        outputMessage = outputGhcLocationArg ++ "\n" ++ outputFlagsArg
+        outputCabalFile = case cabalFile args of
+                             Nothing -> ""
+                             Just cabalFilePath -> "\n--cabal-file\n" ++ escapeForXArgs cabalFilePath
+
+        outputMessage = outputGhcLocationArg ++ outputFlagsArg
     writeOutput outputMessage
 
 
