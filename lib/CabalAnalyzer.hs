@@ -18,19 +18,18 @@ import Distribution.Types.PackageName
 import Distribution.System
 import Distribution.Compiler
 
-import Data.Maybe (mapMaybe, fromMaybe, maybeToList)
+import Data.Maybe (fromMaybe, maybeToList)
 
 import qualified Data.ByteString as B
 
 import Control.Monad (mplus, msum)
-import Data.List (find, sortOn)
-import Data.Ord (Down(..))
 
 import VabalError
 
 import GhcVersionChaser
 
 import GhcDatabase
+import VabalContext
 
 unableToSatisfyConstraintsError :: a
 unableToSatisfyConstraintsError = throwVabalError "Error, could not satisfy constraints."
@@ -92,27 +91,12 @@ constraintsForBase flags pkgDescr otherBaseConstraints compiler =
             in Just $ foldr intersectVersionRanges anyVersion baseConstraints
 
 
--- Find compiler version satisfying the imposed constraints
-findNewestCompilerVersion :: VersionRange -> Maybe Version
-findNewestCompilerVersion = newestGhcVersionIn
-
-findAvailableCompilerVersion :: [(Version, Version)] -> VersionRange -> Maybe Version
-findAvailableCompilerVersion availableGhcs versionRange =
-    snd <$> find ((`withinRange` versionRange) . fst) availableGhcs
-
-
-ghcVersionWithAssociatedBase :: Version -> Maybe (Version, Version)
-ghcVersionWithAssociatedBase ghcVer = case baseVersionForGhc ghcVer of
-                                          Nothing -> Nothing
-                                          Just baseVer -> Just (baseVer, ghcVer)
-
 analyzeCabalFileAllTargets :: FlagAssignment
-                           -> Bool
-                           -> [Version]
+                           -> VabalContext
                            -> Maybe Version
                            -> B.ByteString
                            -> Version
-analyzeCabalFileAllTargets flags alwaysNewestGhc availableGhcs baseVersionConstraint cabalFile =
+analyzeCabalFileAllTargets flags ctx  baseVersionConstraint cabalFile =
     case parseGenericPackageDescriptionMaybe cabalFile of
         Nothing -> cannotParseCabalFileError
         Just pkgDescr -> {-# SCC "vabal-core" #-}
@@ -121,27 +105,20 @@ analyzeCabalFileAllTargets flags alwaysNewestGhc availableGhcs baseVersionConstr
                 -- Get all the ghc we should try
                 -- Each candidate is a pair (BaseConstraints, CompilerInfo)
                 candidates = map (fmap makeCompilerInfo) -- turn a GhcVersion in CompilerInfo
-                           $ findGhcVersions otherBaseConstraints pkgDescr
+                           $ findGhcVersions (allGhcInfo ctx) otherBaseConstraints pkgDescr
 
                 allBaseConstraints = map (uncurry $ constraintsForBase flags pkgDescr) candidates
 
-                -- Ghc versions with associated base version
-                -- sorted from the newest to the oldest ghc version.
-                -- WARNING: Ghcs we don't recognize are just ignored, this can be dangerous
-                availableGhcs' = mapMaybe ghcVersionWithAssociatedBase
-                               . sortOn Down
-                               $ availableGhcs
-
                 newestGhcCandidate =
                         -- Get first compatible compiler
-                        msum $ map (>>= findNewestCompilerVersion) allBaseConstraints
+                        msum $ map (>>= newestGhcVersionIn (allGhcInfo ctx)) allBaseConstraints
 
                 availableGhcCandidate = 
                         -- Get first compatible compiler, amongst the available
-                        msum $ map (>>= findAvailableCompilerVersion availableGhcs') allBaseConstraints
+                        msum $ map (>>= newestGhcVersionIn (availableGhcs ctx)) allBaseConstraints
 
                 ghcCandidate =
-                    if alwaysNewestGhc then
+                    if alwaysNewestGhc ctx then
                         newestGhcCandidate
                     else
                         -- If no available ghc is good, just find the newest
@@ -150,17 +127,23 @@ analyzeCabalFileAllTargets flags alwaysNewestGhc availableGhcs baseVersionConstr
             in fromMaybe unableToSatisfyConstraintsError ghcCandidate
 
 checkIfGivenVersionWorksForAllTargets :: FlagAssignment
+                                      -> VabalContext
                                       -> B.ByteString
                                       -> Version
                                       -> Bool
-checkIfGivenVersionWorksForAllTargets flags cabalFile selectedGhcVersion =
+checkIfGivenVersionWorksForAllTargets flags ctx cabalFile selectedGhcVersion =
     case parseGenericPackageDescriptionMaybe cabalFile of
         Nothing -> cannotParseCabalFileError
         Just pkgDescr ->
             let ghc = makeCompilerInfo selectedGhcVersion
             in case constraintsForBase flags pkgDescr anyVersion ghc of
                 Nothing -> unableToSatisfyConstraintsError
-                Just suggestedVersionRange ->
+                Just suggestedBaseVersionRange ->
                     -- Check if the selected ghc is one of the suggested ones
-                    selectedGhcVersion `elem` ghcVersionsIn suggestedVersionRange
+                    -- If we can't find the base version for the selected ghc,
+                    -- then we don't recognize it and we say it may not be good.
+                    -- Otherwise we check if its base version fits inside
+                    -- the suggested base version range
+                    maybe False (`withinRange` suggestedBaseVersionRange) $
+                          baseVersionForGhc (allGhcInfo ctx) selectedGhcVersion
 

@@ -52,6 +52,8 @@ import Data.Function (on)
 
 import GhcDatabase
 
+import VabalContext
+
 
 -- It represents a condition on GHC version
 type GhcVersionRangeCondition = VersionRange
@@ -124,34 +126,46 @@ allTruthAssignments vars =
               otherAssignments <- assignments
               return (newAssignment : otherAssignments)
 
-truthAssignmentToGhcVersion :: VersionRangeConditionTruthAssignment -> Maybe Version
+truthAssignmentToGhcVersion :: GhcToBaseMap
+                            -> VersionRangeConditionTruthAssignment
+                            -> Maybe Version
 truthAssignmentToGhcVersion = newestGhcVersionIn
 
-truthAssignmentToBaseVersionRange :: VersionRangeConditionTruthAssignment -> VersionRange
-truthAssignmentToBaseVersionRange versionRangeAssignment =
-    let baseVersions = map thisVersion $ baseVersionsIn versionRangeAssignment
+truthAssignmentToBaseVersionRange :: GhcToBaseMap
+                                  -> VersionRangeConditionTruthAssignment
+                                  -> VersionRange
+truthAssignmentToBaseVersionRange gtb versionRangeAssignment =
+    let baseVersions = map thisVersion $ baseVersionsIn gtb versionRangeAssignment
     in foldr unionVersionRanges noVersion baseVersions
 
 
-truthAssignmentToGhcAssignment :: VersionRangeConditionTruthAssignment -> Maybe GhcAssignment
-truthAssignmentToGhcAssignment ass =
-    case truthAssignmentToGhcVersion ass of
+truthAssignmentToGhcAssignment :: GhcToBaseMap
+                               -> VersionRangeConditionTruthAssignment
+                               -> Maybe GhcAssignment
+truthAssignmentToGhcAssignment gtb ass =
+    case truthAssignmentToGhcVersion gtb ass of
         Nothing -> Nothing
-        Just ghcVer -> let baseVerRange = truthAssignmentToBaseVersionRange ass
+        Just ghcVer -> let baseVerRange = truthAssignmentToBaseVersionRange gtb ass
                        in Just (baseVerRange, ghcVer)
 
 
-ghcAssignments :: VersionRange -> [GhcVersionRangeCondition] -> [GhcAssignment]
-ghcAssignments otherBaseConstraints =
+ghcAssignments :: GhcToBaseMap
+               -> VersionRange
+               -> [GhcVersionRangeCondition]
+               -> [GhcAssignment]
+ghcAssignments gtb otherBaseConstraints =
     sortBy (comparing Down `on` snd) -- Sort so that newest ghcs are tried first
   {-# HLINT ignore "Fuse mapMaybe/map" #-}
-  . mapMaybe truthAssignmentToGhcAssignment -- Ignore impossible constraints
+  . mapMaybe (truthAssignmentToGhcAssignment gtb) -- Ignore impossible constraints
   . map (otherBaseConstraints `intersectVersionRanges`) -- Add other imposed constraints
   . allTruthAssignments
   . nub -- TODO: Probably use a Set
 
 
-findGhcVersions :: VersionRange -> GenericPackageDescription -> [GhcAssignment]
-findGhcVersions otherBaseConstraints = ghcAssignments otherBaseConstraints
-                                     . ghcConditions
+findGhcVersions :: GhcToBaseMap
+                -> VersionRange
+                -> GenericPackageDescription
+                -> [GhcAssignment]
+findGhcVersions gtb otherBaseConstraints = ghcAssignments gtb otherBaseConstraints
+                                         . ghcConditions
 

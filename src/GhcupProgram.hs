@@ -17,6 +17,8 @@ import Data.Maybe (fromMaybe)
 
 import VabalError
 
+import VabalContext
+
 import System.Process
 import System.Exit
 
@@ -38,8 +40,8 @@ trimVersionString = dropWhile (== ' ')
 unableToReadGhcupOutputError :: a
 unableToReadGhcupOutputError = throwVabalError "Could not parse ghcup output."
 
-getAvailableGhcs :: IO [Version]
-getAvailableGhcs = do
+getInstalledGhcs :: IO [Version]
+getInstalledGhcs = do
     output <- readProcess "ghcup" ["show"] ""
 
     let installedVersions = map trimVersionString
@@ -57,8 +59,8 @@ checkGhcInPath version = catch checkGhcAndGetPath noGhcFound
           noGhcFound _ = return Nothing
 
           checkGhcAndGetPath = do
-              ghcVersion <- removeTrailingNewlines <$> readProcess "ghc" ["--numeric-version"] ""
-              if version == ghcVersion then
+              ghcVer <- removeTrailingNewlines <$> readProcess "ghc" ["--numeric-version"] ""
+              if version == ghcVer then
                   -- if the previos command didn't fail,
                   -- it's *almost* sure this one won't fail
                   Just . removeTrailingNewlines <$> readCreateProcess (shell "command -v ghc") ""
@@ -68,15 +70,15 @@ checkGhcInPath version = catch checkGhcAndGetPath noGhcFound
 -- Asks ghcup to get the provided version for ghc,
 -- It'll return the file path of the downloaded ghc.
 -- If an error occurs a VabalError is thrown.
-requireGHC :: [Version] -> Version -> Bool -> IO FilePath
-requireGHC availableGhcs ghcVersion noInstall = do
-    let version = prettyPrintVersion ghcVersion
+requireGHC :: GhcToBaseMap -> Version -> Bool -> IO FilePath
+requireGHC installedGhcs ghcVer noInstall = do
+    let version = prettyPrintVersion ghcVer
     ghcPath <- checkGhcInPath version
 
     case ghcPath of
         Just path -> return path
         Nothing -> do
-            let ghcAlreadyInstalled = ghcVersion `elem` availableGhcs
+            let ghcAlreadyInstalled = hasGhcVersion installedGhcs ghcVer
             unless ghcAlreadyInstalled $
                 if noInstall then
                     throwVabalErrorIO "Required GHC version is not available on the system."

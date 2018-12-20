@@ -1,76 +1,45 @@
 module GhcDatabase
-( newestGhcVersion    -- :: GhcVersion
-, ghcVersionsIn       -- :: VersionRange -> [GhcVersion]
-, newestGhcVersionIn  -- :: VersionRange -> Maybe GhcVersion
-, baseVersionsIn      -- :: VersionRange -> [BaseVersion]
-, newestBaseVersionIn -- :: VersionRange -> Maybe GhcVersion
-, baseVersionForGhc   -- :: GhcVersion -> Maybe BaseVersion
+( newestGhcVersion            -- :: GhcToBaseMap -> GhcVersion
+, ghcVersionsWithBaseIn       -- :: GhcToBaseMap -> VersionRange -> [GhcVersion]
+, newestGhcVersionIn          -- :: GhcToBaseMap -> VersionRange -> Maybe GhcVersion
+, baseVersionsIn              -- :: GhcToBaseMap -> VersionRange -> [BaseVersion]
+, newestBaseVersionIn         -- :: GhcToBaseMap -> VersionRange -> Maybe GhcVersion
+, baseVersionForGhc           -- :: GhcToBaseMap -> GhcVersion -> Maybe BaseVersion
 ) where
 
 import Distribution.Version
 import Data.Maybe (listToMaybe)
 import Data.List (find)
 
+import VabalContext
+
 type GhcVersion = Version
 type BaseVersion = Version
 
 
--- TODO: put this table in a separate external file
-baseToGhcMap :: [(BaseVersion, GhcVersion)]
-baseToGhcMap =
-    [ (mkVersion [4,12,0,0], mkVersion [8,6,3])
-    , (mkVersion [4,12,0,0], mkVersion [8,6,2])
-    , (mkVersion [4,12,0,0], mkVersion [8,6,1])
-    , (mkVersion [4,11,1,0], mkVersion [8,4,4])
-    , (mkVersion [4,11,1,0], mkVersion [8,4,3])
-    , (mkVersion [4,11,1,0], mkVersion [8,4,2])
-    , (mkVersion [4,11,0,0], mkVersion [8,4,1])
-    , (mkVersion [4,10,1,0], mkVersion [8,2,2])
-    , (mkVersion [4,10,0,0], mkVersion [8,2,1])
-    , (mkVersion [4,9,1,0], mkVersion [8,0,2])
-    , (mkVersion [4,9,0,0], mkVersion [8,0,1])
-    , (mkVersion [4,8,2,0], mkVersion [7,10,3])
-    , (mkVersion [4,8,1,0], mkVersion [7,10,2])
-    , (mkVersion [4,8,0,0], mkVersion [7,10,1])
-    , (mkVersion [4,7,0,2], mkVersion [7,8,4])
-    , (mkVersion [4,7,0,1], mkVersion [7,8,3])
-    , (mkVersion [4,7,0,0], mkVersion [7,8,1])
-    , (mkVersion [4,6,0,1], mkVersion [7,6,2])
-    , (mkVersion [4,6,0,0], mkVersion [7,6,1])
-    , (mkVersion [4,5,1,0], mkVersion [7,4,2])
-    , (mkVersion [4,5,0,0], mkVersion [7,4,1])
-    , (mkVersion [4,4,1,0], mkVersion [7,2,2])
-    , (mkVersion [4,4,0,0], mkVersion [7,2,1])
-    , (mkVersion [4,3,1,0], mkVersion [7,0,2])
-    , (mkVersion [4,3,0,0], mkVersion [7,0,1])
-    , (mkVersion [4,2,0,2], mkVersion [6,12,3])
-    , (mkVersion [4,2,0,1], mkVersion [6,12,2])
-    , (mkVersion [4,2,0,0], mkVersion [6,12,1])
-    , (mkVersion [4,1,0,0], mkVersion [6,10,2])
-    , (mkVersion [4,0,0,0], mkVersion [6,10,1])
-    ]
-
-newestGhcVersion :: GhcVersion
-newestGhcVersion = snd $ head baseToGhcMap
+newestGhcVersion :: GhcToBaseMap -> GhcVersion
+newestGhcVersion = ghcVersion . head . unwrapMap
 
 isVersionInRange :: VersionRange -> Version -> Bool
 isVersionInRange = flip withinRange
 
--- TODO: Use binary search
+entriesWithBaseVersionIn :: GhcToBaseMap -> VersionRange -> [GhcMetadata]
+entriesWithBaseVersionIn gtb vr =
+    filter (isVersionInRange vr . baseVersion) (unwrapMap gtb)
 
 -- The GhcVersions are in decreasing order
-ghcVersionsIn :: VersionRange -> [GhcVersion]
-ghcVersionsIn vr = snd <$> filter (isVersionInRange vr . fst) baseToGhcMap
+ghcVersionsWithBaseIn :: GhcToBaseMap -> VersionRange -> [GhcVersion]
+ghcVersionsWithBaseIn gtb vr = ghcVersion <$> entriesWithBaseVersionIn gtb vr
 
-newestGhcVersionIn :: VersionRange -> Maybe GhcVersion
-newestGhcVersionIn = listToMaybe . ghcVersionsIn
+newestGhcVersionIn :: GhcToBaseMap -> VersionRange -> Maybe GhcVersion
+newestGhcVersionIn gtb = listToMaybe . ghcVersionsWithBaseIn gtb
 
 -- The BaseVersions are in decreasing order
-baseVersionsIn :: VersionRange -> [BaseVersion]
-baseVersionsIn vr = fst <$> filter (isVersionInRange vr . fst) baseToGhcMap
+baseVersionsIn :: GhcToBaseMap -> VersionRange -> [BaseVersion]
+baseVersionsIn gtb vr = baseVersion <$> entriesWithBaseVersionIn gtb vr
 
-newestBaseVersionIn :: VersionRange -> Maybe BaseVersion
-newestBaseVersionIn = listToMaybe . baseVersionsIn
+newestBaseVersionIn :: GhcToBaseMap -> VersionRange -> Maybe BaseVersion
+newestBaseVersionIn gtb = listToMaybe . baseVersionsIn gtb
 
-baseVersionForGhc :: GhcVersion -> Maybe BaseVersion
-baseVersionForGhc v = fst <$> find ((v ==) . snd) baseToGhcMap
+baseVersionForGhc :: GhcToBaseMap -> GhcVersion -> Maybe BaseVersion
+baseVersionForGhc gtb v = baseVersion <$> find ((v ==) . ghcVersion) (unwrapMap gtb)

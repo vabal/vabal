@@ -13,9 +13,25 @@ import CabalAnalyzer
 import Control.Exception
 import Control.DeepSeq
 
-cabalAnalyzer :: (FilePath, Lazy.ByteString) -> IO Bool
-cabalAnalyzer (path, pkg) = do
-    let fun = return . analyzeCabalFileAllTargets (mkFlagAssignment []) False [] Nothing . Lazy.toStrict
+import VabalContext
+import VabalError
+
+readGhcMetadata :: FilePath -> IO GhcToBaseMap
+readGhcMetadata filepath = do
+    fileExists <- doesFileExist filepath
+
+    if not fileExists then
+        throwVabalErrorIO "Ghc metadata not found, run `vabal update` to download it."
+    else do
+      contents <- Lazy.readFile filepath
+      case readGhcToBaseMap contents of
+        Left err -> throwVabalErrorIO $ "Error, could not parse ghc metadata:\n" ++ err
+        Right res -> return res
+
+cabalAnalyzer :: GhcToBaseMap -> (FilePath, Lazy.ByteString) -> IO Bool
+cabalAnalyzer ghcDb (path, pkg) = do
+    let ctx = VabalContext emptyMap ghcDb False
+    let fun = return . analyzeCabalFileAllTargets (mkFlagAssignment []) ctx Nothing . Lazy.toStrict
 
     let errorHandler :: SomeException -> IO Bool
         errorHandler _ = do
@@ -43,13 +59,15 @@ main = do
 
     indexContents <- Lazy.readFile filepath
 
+    ghcDb <- readGhcMetadata $ homeDir </> ".vabal/ghcMetadata.csv"
+
     let entries = Tar.read indexContents
 
     let cabalFiles = Tar.foldEntries takeCabalFile [] (error "Error while reading index") entries
 
     putStrLn "This is the list of packages on which I failed:"
 
-    res <- mapM cabalAnalyzer cabalFiles
+    res <- mapM (cabalAnalyzer ghcDb) cabalFiles
 
     let success = length $ filter id res
 

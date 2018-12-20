@@ -16,13 +16,15 @@ extra-source-files:  CHANGELOG.md
 cabal-version:       >=1.10
 
 library
-  exposed-modules:     CabalAnalyzer, VabalError, GhcDatabase
+  exposed-modules:     CabalAnalyzer, VabalError, GhcDatabase, VabalContext
   other-modules:       GhcVersionChaser
 
   build-depends:       base                 >= 4.11 && < 4.13,
                        -- ^ GHC             >= 8.4.1 && <= 8.6.2
                        Cabal                >= 2.4 && <2.5,
-                       bytestring
+                       bytestring,
+                       cassava,
+                       vector
 
   hs-source-dirs:      lib/
   ghc-options:         -Wall -Wno-unrecognised-pragmas
@@ -30,7 +32,7 @@ library
 
 executable vabal
   main-is:             Main.hs
-  other-modules:       GhcupProgram, UserInterface
+  other-modules:       GhcupProgram, UserInterface, GhcMetadataDownloader
 -- other-extensions:
   build-depends:       base                 >=4.11 && <4.13,
                        -- ^ GHC             >= 8.4.1 && <= 8.6.2
@@ -40,6 +42,10 @@ executable vabal
                        filepath             >= 1.4.2 && < 1.5,
                        optparse-applicative >= 0.14.3 && < 0.15,
                        bytestring,
+                       cassava,
+                       http-client,
+                       http-client-tls,
+                       http-types,
                        vabal
 
   hs-source-dirs:      src/
