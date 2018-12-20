@@ -87,9 +87,9 @@ but nevertheless you get an error message that indicates something went wrong.
 ```
 vabal - The Cabal Companion
 
-Usage: vabal ([-g|--with-ghc-version VER] | [-b|--with-base-version VER])
-             [--flags FLAGS] [--cabal-file FILE] [--no-install]
-             [--always-newest]
+Usage: vabal ([COMMAND] | ([-g|--with-ghc-version VER] |
+             [-b|--with-base-version VER]) [--flags FLAGS] [--cabal-file FILE]
+             [--no-install] [--always-newest])
   Find out a version of the GHC compiler that satisfies the constraints imposed
   on base in the cabal project (By default already installed GHCs are
   preferred). Then print to stdout the path to a GHC compiler with that version
@@ -115,6 +115,9 @@ Available options:
   --always-newest          Always choose newest GHC possible, don't prefer
                            already installed GHCs
   -h,--help                Show this help text
+
+Available commands:
+  update                   Download updated ghc metadata.
 ```
 
 

@@ -116,9 +116,8 @@ argsParser = pure Arguments
 
 commandParser :: Parser Command
 commandParser = subparser
-    (command "update" (info (pure Update) (progDesc "Download updated ghc metadata."))
-    <> command "run" (info (RunVabal <$> argsParser) (progDesc "Analyze cabal package."))
-    )
+    (command "update" (info (pure Update) (progDesc "Download updated ghc metadata.")) )
+    <|> (RunVabal <$> argsParser)
 main :: IO ()
 main = do
     let opts = info (commandParser <**> helper)
