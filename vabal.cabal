@@ -32,7 +32,9 @@ library
 
 executable vabal
   main-is:             Main.hs
-  other-modules:       GhcupProgram, UserInterface, GhcMetadataDownloader
+  other-modules:       GhcupProgram, UserInterface, GhcMetadata,
+                       VabalMain, VabalArguments, VabalUpdate, VabalConfigure,
+                       ArgumentParsers
 -- other-extensions:
   build-depends:       base                 >=4.11 && <4.13,
                        -- ^ GHC             >= 8.4.1 && <= 8.6.2

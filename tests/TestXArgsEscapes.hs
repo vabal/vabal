@@ -11,6 +11,6 @@ main = do
 
     res <- readProcess "xargs" [] (escapeForXArgs inputString)
     if res == (inputString  ++ "\n") then
-        exitWith ExitSuccess
+        exitSuccess
     else exitWith $ ExitFailure 1
 

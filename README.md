@@ -12,7 +12,7 @@ Have you ever dreamt about treating `base` as all other packages (i.e. change it
 
 `vabal` tries to determine a `ghc` version that complies with the `base` package constraints found in the `.cabal` file.
 Then it uses [ghcup](https://github.com/haskell/ghcup) to fetch the compiler (if you don't have it yet)
-and prints to stdout the path to the fetched compiler.
+and prints to stdout the options to pass to `cabal` to use the fetched compiler.
 
 By default `vabal` tries to use compilers already available on the system
 and downloads them only when it can't do otherwise (or fails if you use the `--no-install` flag).
@@ -37,33 +37,75 @@ These programs are required to be in `PATH`:
  Quick start
 --------------
 
+For starters
+> vabal update
+
+This will download updated infos about released `ghc`s and the versions of `base` they ship,
+the info is stored [here](https://github.com/Franciman/vabal-ghc-metadata/blob/master/ghc-metadata.csv).
+You may want to run this from time to time, when new `ghc`s get released, so that vabal will know about them.
+
+`vabal` follows the `UNIX` philosophy, its power comes when it gets combined with other commands.
+
 Running inside your project directory:
 
 > vabal
 
 will make `vabal` find out which GHC versions is needed to build the project and obtain it,
-then it will print to stdout the path to the obtained GHC compiler.
+then it will print to stdout the options to pass to `cabal`to make it use the obtained GHC compiler.
 
-Now you can either copy the output of `vabal` and pass it as argument to `cabal` using the `-w` flag
-or you can combine `vabal` with `cabal`'s -w options using command substitution.
-So to build the project using the detected compiler, you can run:
+The intended way to use vabal is to compose it with `cabal` through the utility `xargs` (*), like this:
 
-> cabal new-build -w "$(vabal)"
+> vabal | xargs -r cabal new-build
 
-If you want to use the chosen compiler persistently,
-you can just configure the project to use it, like this:
+This command will run vabal and then `xargs` will read from stdin the arguments vabal provided
+and appends them after cabal new-build, executing the resulting command.
+The `-r` flag is needed when vabal fails, in that case xargs won't execute the cabal command.
+You only need to use it if you're on `Linux`, on `OS X` there is no need for it.
+(See more about this in the (*) Remark).
 
-> cabal new-configure -w "$(vabal)"
+Here's an example:
+
+> vabal | xargs -r cabal new-configure
+
+is equivalent to running:
+
+> cabal new-configure -w /path/to/obtained/ghc
+
+
+If you specify some flags to vabal, they will be sent over to cabal as well:
+
+> vabal --flags='a -b' | xargs -r cabal new-configure
+
+is equivalent to:
+
+> cabal new-configure -w /path/to/ghc --flags='a -b'
+
+In this way you can combine vabal with all cabal subcommands (new-build, new-configure, new-test, etc...).
+
+As an example, suppose you want to configure your project using the `ghc` version vabal chooses for you,
+you just need to:
+
+> cd project-dir/
+> vabal | xargs -r cabal new-configure
 
 That is it! Now your project with build with the configured compiler and you will not get `base` version errors anymore!
 
-NB: 
-> The `$(vabal)` syntax is command substitution in `sh` and `bash` shells, it will replace `$(vabal)` with `vabal`'s output
-> (for example `cabal new-build -w "$(vabal)"` becomes `cabal new-build -w /path/to/nice/ghc/version/ghc`)
->
-> If you are using `fish` shell command substitution is done like this: `cabal new-build (vabal)`.
->
-> Consult your shell's manual to see how command substitution is done.
+Most of the time you may just want to run
+
+> vabal | xargs -r cabal new-configure
+
+so it may be convenient to add an alias or write a custom script.
+
+(*) Remark: 
+> The `-r` flag you see is only available in the GNU version of `xargs`. It makes xargs fail if its input is empty,
+> i.e. when vabal fails. This is necessary or cabal will run as well without arguments from vabal.
+> If you use the BSD version of `xargs`, then this flag is not necessary (and is neither available),
+> because this is the default behavior.
+> Another possibility is to use the `-p` flag for `xargs` which is available on all `POSIX` systems,
+> it will show the command it is about to run and ask the user if he needs to proceed. In this way,
+> if vabal failed, he can stop the execution.
+> 
+> Consult your system's manpage for `xargs` for further infos.
 
 
  Gotchas
@@ -74,12 +116,9 @@ Here are some known gotchas that affect `vabal`:
 therefore it only finds a ghc version that makes it possible to respect the constraints,
 but it is not guaranteed that the build will be successful. (Generally one should always write correct constraints)
 
-- if you want to specify some flags to be used when configuring a package, right now you should repeat them twice,
-once to pass them to cabal and once for vabal: `cabal new-configure -fmyflag -w "$(vabal --flags='myflag')"`.
-The same thing goes for the `--cabal-file` flag.
+- The current way `vabal` is meant to be used is a bit verbose and not really beginner friendly,
+probably we should also add a shortcut script `vabal-configure` since it is the most common case of using vabal.
 
-- when `vabal` fails, the behvior of command substitution can be a bit awkward,
-but nevertheless you get an error message that indicates something went wrong.
 
  Program usage
 ---------------
@@ -92,8 +131,8 @@ Usage: vabal ([COMMAND] | ([-g|--with-ghc-version VER] |
              [--no-install] [--always-newest])
   Find out a version of the GHC compiler that satisfies the constraints imposed
   on base in the cabal project (By default already installed GHCs are
-  preferred). Then print to stdout the path to a GHC compiler with that version
-  (potentially downloading it).
+  preferred). Then print to stdout the options to pass to cabal in order to use
+  that compiler (potentially downloading it).
 
 Available options:
   -g,--with-ghc-version VER
