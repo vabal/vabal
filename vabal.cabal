@@ -27,7 +27,7 @@ library
                        vector
 
   hs-source-dirs:      lib/
-  ghc-options:         -Wall -Wno-unrecognised-pragmas
+  ghc-options:         -Wall
   default-language:    Haskell2010
 
 executable vabal

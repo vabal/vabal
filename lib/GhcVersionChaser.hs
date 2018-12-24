@@ -155,12 +155,12 @@ ghcAssignments :: GhcToBaseMap
                -> [GhcAssignment]
 ghcAssignments gtb otherBaseConstraints =
     sortBy (comparing Down `on` snd) -- Sort so that newest ghcs are tried first
-  {-# HLINT ignore "Fuse mapMaybe/map" #-}
   . mapMaybe (truthAssignmentToGhcAssignment gtb) -- Ignore impossible constraints
   . map (otherBaseConstraints `intersectVersionRanges`) -- Add other imposed constraints
   . allTruthAssignments
   . nub -- TODO: Probably use a Set
 
+{-# ANN ghcAssignments "HLint: ignore Fuse mapMaybe/map" #-}
 
 findGhcVersions :: GhcToBaseMap
                 -> VersionRange

@@ -32,69 +32,57 @@ this behavior can be disabled with `--no-install` flag, so you are always in cha
 
 These programs are required to be in `PATH`:
 - ghcup
+- cabal >= 2.4.1.0
 
 
  Quick start
 --------------
 
-For starters
-> vabal update
+For starters run:
+> $ vabal update
 
 This will download updated infos about released `ghc`s and the versions of `base` they ship,
 the info is stored [here](https://github.com/Franciman/vabal-ghc-metadata/blob/master/ghc-metadata.csv).
 You may want to run this from time to time, when new `ghc`s get released, so that vabal will know about them.
 
-`vabal` follows the `UNIX` philosophy, its power comes when it gets combined with other commands.
+Then cd into your project directory and run:
+> $ vabal configure
 
-Running inside your project directory:
+This will analyze the cabal file in the directory and extract constraints imposed on `base`,
+then it will get a compatible version of `ghc` using `ghcup` (possibly downloading it)
+and will finally run `cabal new-configure` to configure the project with the found version of `ghc`.
 
-> vabal
+If everything went fine, you now have your project configured to use a `ghc` compatible
+with the constraints imposed on `base`, you can now build your project as you're used to:
+> $ cabal new-build
 
-will make `vabal` find out which GHC versions is needed to build the project and obtain it,
-then it will print to stdout the options to pass to `cabal`to make it use the obtained GHC compiler.
+You can also enable and disable flags for your package, like this:
+> $ vabal configure --flags="flag1 -flagToDisable"
 
-The intended way to use vabal is to compose it with `cabal` through the utility `xargs` (*), like this:
+And if you want to pass other flags directly to `cabal new-configure`,
+you can do it after a `--`, e.g.:
+> $ vabal configure -- --enable-tests --enable-shared
 
-> vabal | xargs -r cabal new-build
 
-This command will run vabal and then `xargs` will read from stdin the arguments vabal provided
-and appends them after cabal new-build, executing the resulting command.
-The `-r` flag is needed when vabal fails, in that case xargs won't execute the cabal command.
-You only need to use it if you're on `Linux`, on `OS X` there is no need for it.
-(See more about this in the (*) Remark).
+How to use vabal: full story
+----------------------------
 
-Here's an example:
+`vabal` tries to leverage the power of composability of shell commands,
+you can use it in combination with any `cabal` subcommand.
+For example, if you don't want vabal to also perform the `cabal new-configure` step,
+but would like to use it in combination with `cabal new-build`, you can run (*):
+> $ vabal --flags="your -flags" | xargs -r cabal new-build
 
+(If you are on `OS X`, you don't need to specify the -r option for xargs)
+
+xargs invokes cabal with the arguments and options specified *plus* options read from stdin.
+Read the *Remark* for info about the `-r` option.
+
+What vabal actually does is analyze the cabal file and then print to stdout
+options to pass to cabal (already properly escaped to be used with xargs)
+
+In fact, `vabal configure` is just a shortcut for:
 > vabal | xargs -r cabal new-configure
-
-is equivalent to running:
-
-> cabal new-configure -w /path/to/obtained/ghc
-
-
-If you specify some flags to vabal, they will be sent over to cabal as well:
-
-> vabal --flags='a -b' | xargs -r cabal new-configure
-
-is equivalent to:
-
-> cabal new-configure -w /path/to/ghc --flags='a -b'
-
-In this way you can combine vabal with all cabal subcommands (new-build, new-configure, new-test, etc...).
-
-As an example, suppose you want to configure your project using the `ghc` version vabal chooses for you,
-you just need to:
-
-> cd project-dir/
-> vabal | xargs -r cabal new-configure
-
-That is it! Now your project with build with the configured compiler and you will not get `base` version errors anymore!
-
-Most of the time you may just want to run
-
-> vabal | xargs -r cabal new-configure
-
-so it may be convenient to add an alias or write a custom script.
 
 (*) Remark: 
 > The `-r` flag you see is only available in the GNU version of `xargs`. It makes xargs fail if its input is empty,
@@ -102,10 +90,10 @@ so it may be convenient to add an alias or write a custom script.
 > If you use the BSD version of `xargs`, then this flag is not necessary (and is neither available),
 > because this is the default behavior.
 > Another possibility is to use the `-p` flag for `xargs` which is available on all `POSIX` systems,
-> it will show the command it is about to run and ask the user if he needs to proceed. In this way,
+> it will show the command it is about to run and ask the user if he wants to proceed. In this way,
 > if vabal failed, he can stop the execution.
 > 
-> Consult your system's manpage for `xargs` for further infos.
+> Consult your system's manpage for `xargs` for further info.
 
 
  Gotchas
@@ -116,48 +104,46 @@ Here are some known gotchas that affect `vabal`:
 therefore it only finds a ghc version that makes it possible to respect the constraints,
 but it is not guaranteed that the build will be successful. (Generally one should always write correct constraints)
 
-- The current way `vabal` is meant to be used is a bit verbose and not really beginner friendly,
-probably we should also add a shortcut script `vabal-configure` since it is the most common case of using vabal.
 
+ Full list of options
+---------------------
 
- Program usage
----------------
+`vabal` and `vabal configure` accept these options:
 
 ```
-vabal - The Cabal Companion
-
-Usage: vabal ([COMMAND] | ([-g|--with-ghc-version VER] |
-             [-b|--with-base-version VER]) [--flags FLAGS] [--cabal-file FILE]
-             [--no-install] [--always-newest])
-  Find out a version of the GHC compiler that satisfies the constraints imposed
-  on base in the cabal project (By default already installed GHCs are
-  preferred). Then print to stdout the options to pass to cabal in order to use
-  that compiler (potentially downloading it).
-
-Available options:
   -g,--with-ghc-version VER
                            Explicitly tell which version of ghc you want to use
                            for the project. (Incompatible with option
                            --with-base-version)
+                           
   -b,--with-base-version VER
                            Specify the version of base package you want to use.
                            It is going to be checked against base constraints in
                            the cabal file for validity. (Incompatible with
                            option --with-ghc-version)
+                           
   --flags FLAGS            String containing a list of space separated flags to
                            be used to configure the project (You can enable or
                            disable a flag by adding a + or - in front of the
                            flag name. When none is specified, the flag is
-                           enabled).
-  --cabal-file FILE        Explicitly tell which cabal file to use.
+                           enabled). Flag assignment determined here is also
+                           emitted to stdout as a cabal option
+                           (or passed to "cabal new-configure" in the case of
+                           "vabal configure")
+                           
+  --cabal-file FILE        Explicitly tell which cabal file to use. This option
+                           also emitted to stdout as cabal option (or passed to
+                           `cabal new-configure` in the case of "vabal configure")
+  
   --no-install             If GHC needs to be downloaded, fail, instead.
+  
   --always-newest          Always choose newest GHC possible, don't prefer
                            already installed GHCs
-  -h,--help                Show this help text
-
-Available commands:
-  update                   Download updated ghc metadata.
 ```
+
+with `vabal configure` you can also pass arguments directly to cabal,
+just specify them after `--`, e.g.
+> vabal configure -- --cabal-option --enable-tests --haddock-css=PATH
 
 
  Contributing

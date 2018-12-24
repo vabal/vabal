@@ -35,7 +35,7 @@ updateParserInfo = info (pure Update <**> helper)
 
 configureParserInfo :: [String] -> [String] -> ParserInfo Command
 configureParserInfo cabalArgs vabalArgs =
-    info ((const (Configure cabalArgs vabalArgs) <$> configureArgumentsParser) <**> helper)
+    info ((Configure cabalArgs vabalArgs <$ configureArgumentsParser) <**> helper)
     ( fullDesc
     <> header vabalHeader
     <> progDesc configureProgDesc
@@ -65,7 +65,7 @@ updateExeName name pinfo addTrailingCabalArgs old =
         usage = if addTrailingCabalArgs then
                     (parserUsage defaultPrefs p name <> string " [-- CABALARGS...]") : desc
                 else
-                    (parserUsage defaultPrefs p name) : desc
+                    parserUsage defaultPrefs p name : desc
     in old { helpUsage = Chunk . Just $ vcat usage }
 
 parseArgs :: [String] -> IO Command
