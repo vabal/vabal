@@ -32,7 +32,7 @@ this behavior can be disabled with `--no-install` flag, so you are always in cha
 
 In order to install `vabal` you need `ghc` >= 8.4.1
 
-To install it, you can run:
+To install it from sources, you can run:
 > $ cabal v2-install exe:vabal
 
 inside the vabal directory.
@@ -63,7 +63,7 @@ Then cd into your project directory and run:
 
 This will analyze the cabal file in the directory and extract constraints imposed on `base`,
 then it will get a compatible version of `ghc` using `ghcup` (possibly downloading it)
-and will finally run `cabal v2-configure` to configure the project with the found version of `ghc`.
+and will finally run `cabal v2-configure` to configure the project with the obtained version of `ghc`.
 
 If everything went fine, you now have your project configured to use a `ghc` compatible
 with the constraints imposed on `base`, you can now build your project as you're used to:
@@ -94,7 +94,7 @@ Read the *Remark* for info about the `-r` option.
 > In Haskell jargon, you can see this as partially applying the `cabal` "function" first,
 > and then providing it the remaining arguments that `vabal` emitted.
 
-What vabal actually does is analyze the cabal file, obtain a suitable `ghc` and then print to stdout
+What vabal actually does is analyze the cabal file, obtain a suitable `ghc`, using `ghcup`, and then print to stdout
 options to pass to cabal (already properly escaped to be used with xargs).
 It follows the Unix philosophy and its power comes from composition with other programs.
 
