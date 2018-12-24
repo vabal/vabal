@@ -27,6 +27,18 @@ The only change to the global system state `vabal` does is to tell `ghcup` to do
 this behavior can be disabled with `--no-install` flag, so you are always in charge of what's happening!
 
 
+ How to install it
+-------------------
+
+In order to install `vabal` you need `ghc` >= 8.4.1
+
+To install it, you can run:
+> $ cabal v2-install exe:vabal
+
+inside the vabal directory.
+(Remember to put `$HOME/.cabal/bin` in your `PATH`)
+
+
  Requirements
 --------------
 
@@ -51,16 +63,16 @@ Then cd into your project directory and run:
 
 This will analyze the cabal file in the directory and extract constraints imposed on `base`,
 then it will get a compatible version of `ghc` using `ghcup` (possibly downloading it)
-and will finally run `cabal new-configure` to configure the project with the found version of `ghc`.
+and will finally run `cabal v2-configure` to configure the project with the found version of `ghc`.
 
 If everything went fine, you now have your project configured to use a `ghc` compatible
 with the constraints imposed on `base`, you can now build your project as you're used to:
-> $ cabal new-build
+> $ cabal v2-build
 
 You can also enable and disable flags for your package, like this:
 > $ vabal configure --flags="flag1 -flagToDisable"
 
-And if you want to pass other flags directly to `cabal new-configure`,
+And if you want to pass other flags directly to `cabal v2-configure`,
 you can do it after a `--`, e.g.:
 > $ vabal configure -- --enable-tests --enable-shared
 
@@ -70,9 +82,9 @@ How to use vabal: full story
 
 `vabal` tries to leverage the power of composability of shell commands,
 you can use it in combination with any `cabal` subcommand.
-For example, if you don't want vabal to also perform the `cabal new-configure` step,
-but would like to use it in combination with `cabal new-build`, you can run (*):
-> $ vabal --flags="your -flags" | xargs -r cabal new-build
+For example, if you don't want vabal to also perform the `cabal v2-configure` step,
+but would like to use it in combination with `cabal v2-build`, you can run (*):
+> $ vabal --flags="your -flags" | xargs -r cabal v2-build
 
 (If you are on `OS X`, you don't need to specify the -r option for xargs)
 
@@ -87,7 +99,7 @@ options to pass to cabal (already properly escaped to be used with xargs).
 It follows the Unix philosophy and its power comes from composition with other programs.
 
 In fact, `vabal configure` is just a shortcut for:
-> vabal | xargs -r cabal new-configure
+> vabal | xargs -r cabal v2-configure
 
 (*) Remark: 
 > The `-r` flag you see is only available in the GNU version of `xargs`. It makes xargs fail if its input is empty,
@@ -133,12 +145,12 @@ but it is not guaranteed that the build will be successful. (Generally one shoul
                            flag name. When none is specified, the flag is
                            enabled). Flag assignment determined here is also
                            emitted to stdout as a cabal option
-                           (or passed to "cabal new-configure" in the case of
+                           (or passed to "cabal v2-configure" in the case of
                            "vabal configure")
                            
   --cabal-file FILE        Explicitly tell which cabal file to use. This option
                            also emitted to stdout as cabal option (or passed to
-                           `cabal new-configure` in the case of "vabal configure")
+                           `cabal v2-configure` in the case of "vabal configure")
   
   --no-install             If GHC needs to be downloaded, fail, instead.
   

@@ -19,8 +19,8 @@ configureProgDesc = "Finds a version of GHC (and downloads it, if necessary) \
                \ the constraints imposed on base package found \
                \ in the cabal file analyzed. Then it configures your project \
                \ to use the said GHC compiler by running \
-               \ \"cabal new-configure\". \
-               \ To pass other custom arguments to \"cabal new-configure\" \
+               \ \"cabal v2-configure\". \
+               \ To pass other custom arguments to \"cabal v2-configure\" \
                \ specify them after --."
 
 
@@ -30,7 +30,7 @@ vabalConfigure cabalArgs vabalArgs = do
     case exitCode of
         ExitFailure _ -> writeError vabalErr
         ExitSuccess   -> do
-            let xargsArgs = ["-t", "cabal", "new-configure"] ++ cabalArgs
+            let xargsArgs = ["-t", "cabal", "v2-configure"] ++ cabalArgs
             let procDescr = (proc "xargs" xargsArgs)
                           { std_in = CreatePipe
                           }
