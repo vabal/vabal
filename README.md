@@ -42,7 +42,8 @@ For starters run:
 > $ vabal update
 
 This will download updated infos about released `ghc`s and the versions of `base` they ship,
-the info is stored [here](https://github.com/Franciman/vabal-ghc-metadata/blob/master/ghc-metadata.csv).
+the info is stored [here](https://github.com/Franciman/vabal-ghc-metadata/blob/master/ghc-metadata.csv),
+and will put them in `$HOME/.vabal/ghc-metadata.csv`.
 You may want to run this from time to time, when new `ghc`s get released, so that vabal will know about them.
 
 Then cd into your project directory and run:
@@ -78,8 +79,11 @@ but would like to use it in combination with `cabal new-build`, you can run (*):
 xargs invokes cabal with the arguments and options specified *plus* options read from stdin.
 Read the *Remark* for info about the `-r` option.
 
-What vabal actually does is analyze the cabal file and then print to stdout
-options to pass to cabal (already properly escaped to be used with xargs)
+> You can see this as partially applying the `cabal` "function" first, and then providing it the remaining arguments that `vabal` emitted.
+
+What vabal actually does is analyze the cabal file, obtain a suitable `ghc` and then print to stdout
+options to pass to cabal (already properly escaped to be used with xargs).
+It follows the Unix philosophy and its power comes from composition with other programs.
 
 In fact, `vabal configure` is just a shortcut for:
 > vabal | xargs -r cabal new-configure
