@@ -14,19 +14,10 @@ import Control.Exception
 import Control.DeepSeq
 
 import VabalContext
-import VabalError
 
-readGhcMetadata :: FilePath -> IO GhcToBaseMap
-readGhcMetadata filepath = do
-    fileExists <- doesFileExist filepath
+import GhcMetadata
 
-    if not fileExists then
-        throwVabalErrorIO "Ghc metadata not found, run `vabal update` to download it."
-    else do
-      contents <- Lazy.readFile filepath
-      case readGhcToBaseMap contents of
-        Left err -> throwVabalErrorIO $ "Error, could not parse ghc metadata:\n" ++ err
-        Right res -> return res
+import System.Posix.Temp
 
 cabalAnalyzer :: GhcToBaseMap -> (FilePath, Lazy.ByteString) -> IO Bool
 cabalAnalyzer ghcDb (path, pkg) = do
@@ -51,6 +42,9 @@ takeCabalFile entry accum =
 
         _ -> accum
 
+withTmpDir :: String -> (FilePath -> IO a) -> IO a
+withTmpDir template action = bracket (mkdtemp template) removeDirectoryRecursive action
+
 main :: IO ()
 main = do
 
@@ -59,19 +53,23 @@ main = do
 
     indexContents <- Lazy.readFile filepath
 
-    ghcDb <- readGhcMetadata $ homeDir </> ".vabal/ghcMetadata.csv"
+    withTmpDir "/tmp/vabal-test-on-hackage" $ \tmpDir -> do
 
-    let entries = Tar.read indexContents
+        downloadGhcMetadata $ tmpDir </> "ghc-metadata.csv"
+        putStrLn "Metadata downloaded."
 
-    let cabalFiles = Tar.foldEntries takeCabalFile [] (error "Error while reading index") entries
+        ghcDb <- readGhcMetadata $ tmpDir </> "ghc-metadata.csv"
+        putStrLn "Metadata read."
 
-    putStrLn "This is the list of packages on which I failed:"
+        let entries = Tar.read indexContents
 
-    res <- mapM (cabalAnalyzer ghcDb) cabalFiles
+        let cabalFiles = Tar.foldEntries takeCabalFile [] (error "Error while reading index") entries
 
-    let success = length $ filter id res
+        putStrLn "This is the list of packages on which I failed:"
 
-    putStrLn $ "Success: " ++ show success
-    putStrLn $ "Failure: " ++ show (length res - success)
+        res <- mapM (cabalAnalyzer ghcDb) cabalFiles
 
-    return ()
+        let success = length $ filter id res
+
+        putStrLn $ "Success: " ++ show success
+        putStrLn $ "Failure: " ++ show (length res - success)
