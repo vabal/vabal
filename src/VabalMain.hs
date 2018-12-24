@@ -50,7 +50,7 @@ findCabalFile = do
         (cf:_) -> return cf
 
 mainProgDesc :: String
-mainProgDesc = "Finds a version of GHC (and downloads it, if necessary) \
+mainProgDesc = "Finds a version of GHC (using ghcup, which downloads it, if necessary) \
                \ that is compatible with \
                \ the constraints imposed on base package found \
                \ in the cabal file analyzed. Then prints to stdout \
