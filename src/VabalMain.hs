@@ -50,11 +50,12 @@ findCabalFile = do
         (cf:_) -> return cf
 
 mainProgDesc :: String
-mainProgDesc = "Finds a version of GHC (using ghcup, which downloads it, if necessary) \
-               \ that is compatible with \
+mainProgDesc = "Finds a version of GHC that is compatible with \
                \ the constraints imposed on base package found \
-               \ in the cabal file analyzed. Then prints to stdout \
-               \ options to feed to cabal to use the said GHC compiler \
+               \ in the cabal file analyzed, \
+               \ then uses ghcup to obtain it (possibly downloading it). \
+               \ Finally it prints to stdout options you can feed \
+               \ to cabal to use the obtained GHC compiler \
                \ (options are already escaped so that they can sent to xargs). \
                \ WARNING: Probably this is not what you want to use, \
                \ See \"vabal configure --help\" for info about how to \
