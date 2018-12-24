@@ -3,17 +3,27 @@
 
 name:                vabal
 version:             0.1.0.0
-synopsis:            cabal in Valle
--- description:
-license:             BSD3
+synopsis:            the cabal companion
+license:             GPL-3
 license-file:        LICENSE
 author:              Francesco Magliocca
 maintainer:          franciman12@gmail.com
 -- copyright:
 -- category:
 build-type:          Simple
-extra-source-files:  CHANGELOG.md
+extra-source-files:  CHANGELOG.md, README.md
 cabal-version:       >=1.10
+
+description:
+    `vabal` finds a version of `GHC` that is compatible with
+    the constraints imposed on base package found 
+    in the cabal file analyzed. It then uses `ghcup`
+    to obtain the correct version of the compiler (potentially downloading it).
+    It supports two modes:
+        - `vabal configure` configures your project to use the obtained `ghc`
+        - `vabal` prints to stdout options to give to cabal to use the obtained `ghc`.
+          (options are escaped so that they can sent to the `xargs` POSIX utility).
+    See the README for more detailed informations.
 
 library
   exposed-modules:     CabalAnalyzer, VabalError, GhcDatabase, VabalContext, XArgsEscape
@@ -35,7 +45,7 @@ executable vabal
   other-modules:       GhcupProgram, UserInterface, GhcMetadata,
                        VabalMain, VabalArguments, VabalUpdate, VabalConfigure,
                        ArgumentParsers
--- other-extensions:
+
   build-depends:       base                 >=4.11 && <4.13,
                        -- ^ GHC             >= 8.4.1 && <= 8.6.2
                        Cabal                >= 2.4 && <2.5,
