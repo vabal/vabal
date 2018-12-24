@@ -79,7 +79,8 @@ but would like to use it in combination with `cabal new-build`, you can run (*):
 xargs invokes cabal with the arguments and options specified *plus* options read from stdin.
 Read the *Remark* for info about the `-r` option.
 
-> You can see this as partially applying the `cabal` "function" first, and then providing it the remaining arguments that `vabal` emitted.
+> In Haskell jargon, you can see this as partially applying the `cabal` "function" first,
+> and then providing it the remaining arguments that `vabal` emitted.
 
 What vabal actually does is analyze the cabal file, obtain a suitable `ghc` and then print to stdout
 options to pass to cabal (already properly escaped to be used with xargs).
