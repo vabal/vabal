@@ -163,6 +163,17 @@ just specify them after `--`, e.g.
 > vabal configure -- --cabal-option --enable-tests --haddock-css=PATH
 
 
+ How to uninstall it
+--------------------
+
+If you want to uninstall `vabal` you can follow the same steps
+that are necessary to uninstall any executable installed with `cabal v2-install`
+(i.e. remove the symlink in "$HOME/.cabal/bin").
+
+Furthermore, you also need to remove the `$HOME/.vabal` directory
+containing metadata used by `vabal`.
+
+
  Contributing
 --------------
 
