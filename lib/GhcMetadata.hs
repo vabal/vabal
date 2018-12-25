@@ -14,8 +14,7 @@ import System.FilePath
 import VabalContext
 
 metadataUrl :: String
-metadataUrl = "https://raw.githubusercontent.com/Franciman/vabal-ghc-metadata/master/ghc-metadata.csv"
-
+metadataUrl = "https://raw.githubusercontent.com/Franciman/vabal-ghc-metadata/master/vabal-ghc-metadata.csv"
 
 getGhcMetadataDir :: IO FilePath
 getGhcMetadataDir = do
@@ -23,7 +22,7 @@ getGhcMetadataDir = do
     return (homeDir </> ".vabal")
 
 ghcMetadataFilename :: String
-ghcMetadataFilename = "ghc-metadata.csv"
+ghcMetadataFilename = "vabal-ghc-metadata.csv"
 
 
 readGhcMetadata :: FilePath -> IO GhcToBaseMap
