@@ -26,9 +26,12 @@ configureProgDesc = "Finds a version of GHC (and downloads it, if necessary) \
 
 vabalConfigure :: [String] -> [String] -> IO ()
 vabalConfigure cabalArgs vabalArgs = do
-    (exitCode, vabalOutput, vabalErr) <- readProcessWithExitCode "vabal" vabalArgs ""
-    case exitCode of
-        ExitFailure _ -> writeError vabalErr
+    (vabalExitCode, vabalOutput, vabalErr) <- readProcessWithExitCode "vabal" vabalArgs ""
+    case vabalExitCode of
+        ExitFailure _ -> do
+            writeError vabalErr
+            exitWith vabalExitCode
+
         ExitSuccess   -> do
             let xargsArgs = ["-t", "cabal", "v2-configure"] ++ cabalArgs
             let procDescr = (proc "xargs" xargsArgs)
@@ -37,6 +40,6 @@ vabalConfigure cabalArgs vabalArgs = do
             (Just handle, _, _, processHandle) <- createProcess procDescr
             hPutStr handle vabalOutput
             hClose handle
-            _ <- waitForProcess processHandle
-            return ()
+            xargsExitCode <- waitForProcess processHandle
+            exitWith xargsExitCode
 
