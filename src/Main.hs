@@ -80,7 +80,7 @@ parseArgs ("configure" : args) =
                            [] -> []
                            as -> tail as
 
-        parserInfo = configureParserInfo cabalArgs args
+        parserInfo = configureParserInfo cabalArgs vabalArgs
 
     in handleParseResult
        . overFailure (updateExeName "vabal configure" parserInfo True)
