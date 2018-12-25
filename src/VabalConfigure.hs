@@ -14,13 +14,14 @@ configureArgumentsParser :: Parser VabalMainArguments
 configureArgumentsParser = mainArgumentsParser
 
 configureProgDesc :: String
-configureProgDesc = "Finds a version of GHC (and downloads it, if necessary) \
-               \ that is compatible with \
+configureProgDesc = "Finds a version of GHC that is compatible with \
                \ the constraints imposed on base package found \
-               \ in the cabal file analyzed. Then it configures your project \
-               \ to use the said GHC compiler by running \
+               \ in the cabal file analyzed, \
+               \ then uses ghcup to obtain it (possibly downloading it). \
+               \ Then it configures your project \
+               \ to use the obtained GHC compiler by running \
                \ \"cabal v2-configure\". \
-               \ To pass other custom arguments to \"cabal v2-configure\" \
+               \ In order to pass other custom arguments to \"cabal v2-configure\", \
                \ specify them after --."
 
 
