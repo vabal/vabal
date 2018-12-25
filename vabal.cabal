@@ -52,15 +52,14 @@ executable vabal
                        VabalArguments, VabalUpdate, VabalConfigure,
                        ArgumentParsers
 
-  build-depends:       base                 >=4.11 && <4.13,
-                       -- ^ GHC             >= 8.4.1 && <= 8.6.2
-                       Cabal                >= 2.4 && <2.5,
-                       process              >= 1.6.3 && < 1.7,
-                       directory            >= 1.3.3 && < 1.4,
-                       filepath             >= 1.4.2 && < 1.5,
+  build-depends:       base,
+                       bytestring,
+                       Cabal,
+                       cassava,
+                       directory,
+                       filepath,
                        optparse-applicative >= 0.14.3 && < 0.15,
-                       bytestring           >= 0.10.8 && < 0.11,
-                       cassava              >= 0.5.1 && < 0.6,
+                       process              >= 1.6.3 && < 1.7,
                        vabal
 
   hs-source-dirs:      src/
@@ -71,14 +70,13 @@ test-suite test-on-hackage
   type:                exitcode-stdio-1.0
   main-is:             TestOnHackage.hs
 
-  build-depends:       base                 >=4.11 && <4.13,
-                       -- ^ GHC             >= 8.4.1 && <= 8.6.2
-                       filepath             >= 1.4.2 && < 1.5,
-                       Cabal                >= 2.4 && < 2.5,
+  build-depends:       base,
+                       bytestring,
+                       Cabal,
                        deepseq              >= 1.4.3 && < 1.4.5,
-                       bytestring           >= 0.10.8 && < 0.11,
+                       directory,
+                       filepath,
                        tar                  >= 0.5.1 && < 0.6,
-                       directory            >= 1.3.3 && < 1.4,
                        unix                 >= 2.7.2 && < 2.8,
                        vabal
 
@@ -90,9 +88,8 @@ test-suite xargs-escape-test
   type:                exitcode-stdio-1.0
   main-is:             TestXArgsEscapes.hs
 
-  build-depends:       base                 >=4.11 && <4.13,
-                       -- ^ GHC             >= 8.4.1 && <= 8.6.2
-                       process              >= 1.6.3 && < 1.7,
+  build-depends:       base,
+                       process,
                        vabal
 
   hs-source-dirs:      tests/
