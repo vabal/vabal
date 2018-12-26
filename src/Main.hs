@@ -24,7 +24,7 @@ data Command = Update
              | Configure [String] [String]
 
 vabalHeader :: String
-vabalHeader = "vabal - The Cabal Companion"
+vabalHeader = "vabal - The Cabal Companion, version 1.0.0"
 
 updateParserInfo :: ParserInfo Command
 updateParserInfo = info (pure Update <**> helper)
