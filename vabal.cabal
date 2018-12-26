@@ -19,9 +19,11 @@ description:
     in the cabal file analyzed. It then uses `ghcup`
     to obtain the correct version of the compiler (potentially downloading it).
     It supports two modes:
-        - `vabal configure` configures your project to use the obtained `ghc`
-        - `vabal` prints to stdout options to give to cabal to use the obtained `ghc`.
-          (options are escaped so that they can sent to the `xargs` POSIX utility).
+    .
+    * @vabal configure@ (it configures your project to use the obtained `ghc`),
+    * @vabal@ (it prints to stdout options to give to cabal to use the obtained `ghc`.
+    Options are escaped so that they can sent to the `xargs` POSIX utility).
+    .
     See the README for more detailed informations.
 
 library vabal-lib
