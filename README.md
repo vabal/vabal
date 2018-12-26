@@ -30,10 +30,12 @@ this behavior can be disabled with `--no-install` flag, so you are always in cha
  How to install it
 -------------------
 
-In order to install `vabal` you need `ghc` >= 8.4.1
+In order to install `vabal` you need:
+- `ghc` >= 8.4.1,
+- `cabal` >= 2.4.0.0 (Actually you just need >= 2.0.0.0 to install it)
 
 To install it from sources, you can run:
-> $ cabal v2-install exe:vabal
+> $ cabal v2-install vabal
 
 inside the vabal directory.
 (Remember to put `$HOME/.cabal/bin` in your `PATH`)
@@ -44,7 +46,7 @@ inside the vabal directory.
 
 These programs are required to be in `PATH`:
 - ghcup
-- cabal >= 2.4.1.0
+- cabal >= 2.4.0.0
 
 
  Quick start
