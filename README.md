@@ -40,7 +40,7 @@ To install it from sources, you can run:
 inside the vabal directory.
 (Remember to put `$HOME/.cabal/bin` in your `PATH`)
 
-Or you can install `vabal` from hackage by running:
+Or you can install `vabal` from Hackage by running:
 > $ cabal v2-install vabal
 
 
