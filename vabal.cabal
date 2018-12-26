@@ -27,7 +27,7 @@ description:
     .
     See the README for more detailed informations.
 
-library vabal-lib
+library vabal-internal
   exposed-modules:     CabalAnalyzer, VabalError, GhcDatabase,
                        VabalContext, XArgsEscape, GhcMetadata
   other-modules:       GhcVersionChaser
@@ -62,7 +62,7 @@ executable vabal
                        filepath             >= 1.4.2 && < 1.5,
                        optparse-applicative >= 0.14.3 && < 0.15,
                        process              >= 1.6.3 && < 1.7,
-                       vabal-lib
+                       vabal-internal
 
   hs-source-dirs:      src/
   ghc-options:         -Wall
@@ -80,7 +80,7 @@ test-suite test-on-hackage
                        filepath,
                        tar                  >= 0.5.1 && < 0.6,
                        unix                 >= 2.7.2 && < 2.8,
-                       vabal-lib
+                       vabal-internal
 
   hs-source-dirs:      tests/
   ghc-options:         -Wall
@@ -92,7 +92,7 @@ test-suite xargs-escape-test
 
   build-depends:       base,
                        process,
-                       vabal-lib
+                       vabal-internal
 
   hs-source-dirs:      tests/
   ghc-options:         -Wall
