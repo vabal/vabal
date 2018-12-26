@@ -11,6 +11,7 @@ maintainer:          franciman12@gmail.com
 category:            Development, Distribution
 build-type:          Simple
 extra-source-files:  CHANGELOG.md, README.md
+homepage:            https://github.com/Franciman/vabal
 cabal-version:       2.0
 
 description:
@@ -100,3 +101,4 @@ test-suite xargs-escape-test
 source-repository head
   type: git
   location: https://github.com/Franciman/vabal.git
+
