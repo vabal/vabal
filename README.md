@@ -41,7 +41,9 @@ You can install `vabal` directly from Hackage by running:
 
 Or you can install it from sources, by running:
 > $ git clone https://github.com/Franciman/vabal.git
+> 
 > $ cd vabal
+> 
 > $ cabal v2-install exe:vabal
 
 (Or `cabal new-install`, depending on the version of your `cabal`)
