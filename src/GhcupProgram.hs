@@ -55,7 +55,9 @@ getInstalledGhcs = do
                           . lines
                           $ output
 
-    return $ map (fromMaybe unableToReadGhcupOutputError . simpleParsec) installedVersions
+    case installedVersions of
+        ["None"] -> return []
+        _ -> return $ map (fromMaybe unableToReadGhcupOutputError . simpleParsec) installedVersions
 
 
 checkGhcInPath :: String  -> IO (Maybe FilePath)
