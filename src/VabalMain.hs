@@ -105,12 +105,14 @@ vabalMain args = do
     writeOutput $ generateCabalOptions args ghcLocation
 
 
-generateCabalOptions :: VabalMainArguments -> FilePath -> String
+generateCabalOptions :: VabalMainArguments -> Maybe FilePath -> String
 generateCabalOptions args ghcLocation =
     let flagsOutput = unwords
               . map showFlagValue $ unFlagAssignment (configFlags args)
 
-        outputGhcLocationArg = "-w\n" ++ escapeForXArgs ghcLocation
+        outputGhcLocationArg = case ghcLocation of
+                                 Nothing -> ""
+                                 Just loc -> "-w\n" ++ escapeForXArgs loc
         outputFlagsArg = if null flagsOutput then
                             ""
                          else
@@ -123,6 +125,6 @@ generateCabalOptions args ghcLocation =
                              Nothing -> ""
                              Just cabalFilePath -> "\n--cabal-file\n" ++ escapeForXArgs cabalFilePath
 
-    in outputGhcLocationArg ++ outputFlagsArg ++ outputCabalFile
+    in dropWhile (== '\n') $ outputGhcLocationArg ++ outputFlagsArg ++ outputCabalFile -- Remove initial newlines
 
 

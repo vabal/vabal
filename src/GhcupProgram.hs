@@ -3,7 +3,7 @@ module GhcupProgram where
 import Data.List (intercalate)
 
 import System.Directory
-import Control.Exception (SomeException, catch)
+import Control.Exception (SomeException, handle)
 import System.FilePath
 import System.Environment (lookupEnv)
 
@@ -13,7 +13,7 @@ import Distribution.Version
 
 import Control.Monad (unless)
 
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, maybeToList)
 
 import System.IO (stderr)
 
@@ -45,46 +45,51 @@ trimVersionString = dropWhile (== ' ')
 unableToReadGhcupOutputError :: a
 unableToReadGhcupOutputError = throwVabalError "Could not parse ghcup output."
 
+ghcInPathVersion :: IO (Maybe String)
+ghcInPathVersion = do
+    let noGhcFound :: SomeException -> IO (Maybe String)
+        noGhcFound _ = return Nothing
+
+    handle noGhcFound $ do
+        ghcVer <- removeTrailingNewlines <$> readProcess "ghc" ["--numeric-version"] ""
+        return $ Just ghcVer
+
 getInstalledGhcs :: IO [Version]
 getInstalledGhcs = do
     output <- readProcess "ghcup" ["show"] ""
 
-    let installedVersions = map trimVersionString
+    let ghcupInstalledVersions = filter (not . (== "None")) -- Ignore the None line (when there is no ghc installed)
+                          . map trimVersionString
                           . tail -- Ignore line containing the header
                           . takeWhile (not . null)
                           . lines
                           $ output
 
-    case installedVersions of
-        ["None"] -> return []
-        _ -> return $ map (fromMaybe unableToReadGhcupOutputError . simpleParsec) installedVersions
+    inPathVersion <- maybeToList <$> ghcInPathVersion
+
+    let installedVersions = inPathVersion ++ ghcupInstalledVersions
+
+    return $ map (fromMaybe unableToReadGhcupOutputError . simpleParsec) installedVersions
 
 
-checkGhcInPath :: String  -> IO (Maybe FilePath)
-checkGhcInPath version = catch checkGhcAndGetPath noGhcFound
-    where noGhcFound :: SomeException -> IO (Maybe FilePath)
-          noGhcFound _ = return Nothing
-
-          checkGhcAndGetPath = do
-              ghcVer <- removeTrailingNewlines <$> readProcess "ghc" ["--numeric-version"] ""
-              if version == ghcVer then
-                  -- if the previos command didn't fail,
-                  -- it's *almost* sure this one won't fail
-                  Just . removeTrailingNewlines <$> readCreateProcess (shell "command -v ghc") ""
-              else
-                  return Nothing
+checkGhcInPath :: String  -> IO Bool
+checkGhcInPath version = do
+    ghcVer <- ghcInPathVersion
+    case ghcVer of
+        Nothing -> return False
+        Just ghcVer' -> return $ version == ghcVer'
 
 -- Asks ghcup to get the provided version for ghc,
 -- It'll return the file path of the downloaded ghc.
 -- If an error occurs a VabalError is thrown.
-requireGHC :: GhcToBaseMap -> Version -> Bool -> IO FilePath
+requireGHC :: GhcToBaseMap -> Version -> Bool -> IO (Maybe FilePath)
 requireGHC installedGhcs ghcVer noInstall = do
     let version = prettyPrintVersion ghcVer
-    ghcPath <- checkGhcInPath version
+    ghcPathIsGood <- checkGhcInPath version
 
-    case ghcPath of
-        Just path -> return path
-        Nothing -> do
+    case ghcPathIsGood of
+        True -> return Nothing
+        False -> do
             let ghcAlreadyInstalled = hasGhcVersion installedGhcs ghcVer
             unless ghcAlreadyInstalled $
                 if noInstall then
@@ -102,5 +107,5 @@ requireGHC installedGhcs ghcVer noInstall = do
             ghcupInstallBasePrefix <- fromMaybe homeDir
                                       <$> lookupEnv "GHCUP_INSTALL_BASE_PREFIX"
 
-            return $ ghcupInstallBasePrefix </> ".ghcup" </> "ghc" </> version </> "bin" </> "ghc"
+            return . Just $ ghcupInstallBasePrefix </> ".ghcup" </> "ghc" </> version </> "bin" </> "ghc"
 
