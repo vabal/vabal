@@ -23,8 +23,11 @@ data Command = Update
              | Main VabalMainArguments
              | Configure [String] [String]
 
+vabalVersion :: String
+vabalVersion = "1.1.0"
+
 vabalHeader :: String
-vabalHeader = "vabal - The Cabal Companion, version 1.0.0"
+vabalHeader = "vabal - The Cabal Companion, version " ++ vabalVersion
 
 updateParserInfo :: ParserInfo Command
 updateParserInfo = info (pure Update <**> helper)

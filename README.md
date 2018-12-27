@@ -27,29 +27,37 @@ The only change to the global system state `vabal` does is to tell `ghcup` to do
 this behavior can be disabled with `--no-install` flag, so you are always in charge of what's happening!
 
 
- How to install it
--------------------
-
-In order to install `vabal` you need:
-- `ghc` >= 8.4.1,
-- `cabal` >= 2.4.0.0 (Actually you just need >= 2.0.0.0 to install it)
-
-To install it from sources, you can run:
-> $ cabal v2-install vabal
-
-inside the vabal directory.
-(Remember to put `$HOME/.cabal/bin` in your `PATH`)
-
-Or you can install `vabal` from Hackage by running:
-> $ cabal v2-install vabal
-
-
  Requirements
 --------------
 
-These programs are required to be in `PATH`:
-- ghcup
+In order to install `vabal` you need:
+- `ghc` >= 8.4.1,
+
+
+You can install `vabal` directly from Hackage by running:
+> $ cabal v2-install vabal
+
+(Or `cabal new-install` depending on the version of your `cabal`).
+
+Or you can install it from sources, by running:
+> $ git clone https://github.com/Franciman/vabal.git
+> $ cd vabal
+> $ cabal v2-install exe:vabal
+
+(Or `cabal new-install`, depending on the version of your `cabal`)
+
+Remember to put `$HOME/.cabal/bin` in your `PATH`.
+
+
+`vabal` needs to run on a `POSIX` compliant system, because it uses `xargs` and `command` utilities,
+furthermore, these programs are required to be in `PATH`:
+- ghcup,
 - cabal >= 2.4.0.0
+
+`cabal >= 2.4.0.0` is a requirement of `vabal configure`.
+
+`vabal` by itself can be used in combination with older `cabal`, too.
+See `How to use vabal: full story` paragraph for details.
 
 
  Quick start
@@ -105,6 +113,8 @@ It follows the Unix philosophy and its power comes from composition with other p
 
 In fact, `vabal configure` is just a shortcut for:
 > vabal | xargs -r cabal v2-configure
+
+In this mode you can compose `vabal` with other `cabal` commands too, also with old-style `cabal build`, `cabal configure`, etc..
 
 (*) Remark: 
 > The `-r` flag you see is only available in the GNU version of `xargs`. It makes xargs fail if its input is empty,

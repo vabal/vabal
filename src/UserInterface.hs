@@ -8,7 +8,7 @@ writeMessage :: String -> IO ()
 writeMessage = hPutStrLn stderr
 
 writeWarning :: String -> IO ()
-writeWarning = putStrLn
+writeWarning = hPutStrLn stderr
 
 writeError :: String -> IO ()
 writeError = hPutStrLn stderr

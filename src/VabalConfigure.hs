@@ -6,9 +6,10 @@ import Options.Applicative
 import System.Exit
 import System.Process
 
-import System.IO (hPutStr, hClose)
+import System.IO (hGetContents, hPutStr, hClose)
 
-import UserInterface
+import VabalError
+
 
 configureArgumentsParser :: Parser VabalMainArguments
 configureArgumentsParser = mainArgumentsParser
@@ -27,11 +28,18 @@ configureProgDesc = "Finds a version of GHC that is compatible with \
 
 vabalConfigure :: [String] -> [String] -> IO ()
 vabalConfigure cabalArgs vabalArgs = do
-    (vabalExitCode, vabalOutput, vabalErr) <- readProcessWithExitCode "vabal" vabalArgs ""
+    let vabalProcess = (proc "vabal" vabalArgs)
+                     { std_out = CreatePipe
+                     }
+
+    (_, Just vabalOutputHandle, _, vabalProcHandle) <- createProcess vabalProcess
+    vabalOutput <- hGetContents vabalOutputHandle
+ 
+    vabalExitCode <- waitForProcess vabalProcHandle
+
     case vabalExitCode of
         ExitFailure _ -> do
-            writeError vabalErr
-            exitWith vabalExitCode
+            throwVabalErrorIO "Vabal failed, exiting."
 
         ExitSuccess   -> do
             let xargsArgs = ["-t", "cabal", "v2-configure"] ++ cabalArgs
@@ -42,5 +50,8 @@ vabalConfigure cabalArgs vabalArgs = do
             hPutStr handle vabalOutput
             hClose handle
             xargsExitCode <- waitForProcess processHandle
-            exitWith xargsExitCode
+            case xargsExitCode of
+                ExitSuccess -> return ()
+                ExitFailure 127 -> throwVabalErrorIO "Could not find cabal executable, make sure it's in PATH."
+                ExitFailure _   -> throwVabalErrorIO "Error while invoking cabal."
 

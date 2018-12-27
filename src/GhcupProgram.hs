@@ -15,6 +15,8 @@ import Control.Monad (unless)
 
 import Data.Maybe (fromMaybe)
 
+import System.IO (stderr)
+
 import VabalError
 
 import VabalContext
@@ -24,7 +26,10 @@ import System.Exit
 
 runExternalProcess :: FilePath -> [String] -> IO ExitCode
 runExternalProcess bin args = do
-    let processDescr = proc bin args
+    let processDescr = (proc bin args)
+                     { std_out = UseHandle stderr
+                     , std_err = UseHandle stderr
+                     }
     (_, _, _, procHandle) <- createProcess processDescr
     waitForProcess procHandle
 
