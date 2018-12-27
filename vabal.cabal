@@ -29,8 +29,8 @@ description:
 
 library
   exposed-modules:     CabalAnalyzer, VabalError, GhcDatabase,
-                       VabalContext, XArgsEscape, GhcMetadata
-  other-modules:       GhcVersionChaser
+                       VabalContext, XArgsEscape, GhcMetadata,
+                       GhcVersionChaser
 
   build-depends:       base,
                        Cabal,
