@@ -24,7 +24,7 @@ data Command = Update
              | Configure [String] [String]
 
 vabalVersion :: String
-vabalVersion = "1.1.0"
+vabalVersion = "1.2.0"
 
 vabalHeader :: String
 vabalHeader = "vabal - The Cabal Companion, version " ++ vabalVersion
