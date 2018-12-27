@@ -38,8 +38,7 @@ vabalConfigure cabalArgs vabalArgs = do
     vabalExitCode <- waitForProcess vabalProcHandle
 
     case vabalExitCode of
-        ExitFailure _ -> do
-            throwVabalErrorIO "Vabal failed, exiting."
+        ExitFailure _ -> throwVabalErrorIO "Vabal failed, exiting."
 
         ExitSuccess   -> do
             let xargsArgs = ["-t", "cabal", "v2-configure"] ++ cabalArgs

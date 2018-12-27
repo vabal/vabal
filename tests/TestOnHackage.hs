@@ -43,7 +43,7 @@ takeCabalFile entry accum =
         _ -> accum
 
 withTmpDir :: String -> (FilePath -> IO a) -> IO a
-withTmpDir template action = bracket (mkdtemp template) removeDirectoryRecursive action
+withTmpDir template = bracket (mkdtemp template) removeDirectoryRecursive
 
 main :: IO ()
 main = do
