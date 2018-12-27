@@ -58,7 +58,7 @@ getInstalledGhcs :: IO [Version]
 getInstalledGhcs = do
     output <- readProcess "ghcup" ["show"] ""
 
-    let ghcupInstalledVersions = filter (not . (== "None")) -- Ignore the None line (when there is no ghc installed)
+    let ghcupInstalledVersions = filter (/= "None") -- Ignore the None line (when there is no ghc installed)
                           . map trimVersionString
                           . tail -- Ignore line containing the header
                           . takeWhile (not . null)
@@ -87,25 +87,25 @@ requireGHC installedGhcs ghcVer noInstall = do
     let version = prettyPrintVersion ghcVer
     ghcPathIsGood <- checkGhcInPath version
 
-    case ghcPathIsGood of
-        True -> return Nothing
-        False -> do
-            let ghcAlreadyInstalled = hasGhcVersion installedGhcs ghcVer
-            unless ghcAlreadyInstalled $
-                if noInstall then
-                    throwVabalErrorIO "Required GHC version is not available on the system."
-                else do
-                    res <- runExternalProcess "ghcup" ["install", version]
-                    case res of
-                        ExitFailure _ -> throwVabalErrorIO "Error while installing ghc."
-                        ExitSuccess   -> return ()
+    if ghcPathIsGood then
+        return Nothing
+    else do
+        let ghcAlreadyInstalled = hasGhcVersion installedGhcs ghcVer
+        unless ghcAlreadyInstalled $
+            if noInstall then
+                throwVabalErrorIO "Required GHC version is not available on the system."
+            else do
+                res <- runExternalProcess "ghcup" ["install", version]
+                case res of
+                    ExitFailure _ -> throwVabalErrorIO "Error while installing ghc."
+                    ExitSuccess   -> return ()
 
-            -- ghcup's install directory can be customized through the use of
-            -- the GHCUP_INSTALL_BASE_PREFIX env variabile.
-            -- If it is not set, its default value is $HOME
-            homeDir <- getHomeDirectory
-            ghcupInstallBasePrefix <- fromMaybe homeDir
-                                      <$> lookupEnv "GHCUP_INSTALL_BASE_PREFIX"
+        -- ghcup's install directory can be customized through the use of
+        -- the GHCUP_INSTALL_BASE_PREFIX env variabile.
+        -- If it is not set, its default value is $HOME
+        homeDir <- getHomeDirectory
+        ghcupInstallBasePrefix <- fromMaybe homeDir
+                                  <$> lookupEnv "GHCUP_INSTALL_BASE_PREFIX"
 
-            return . Just $ ghcupInstallBasePrefix </> ".ghcup" </> "ghc" </> version </> "bin" </> "ghc"
+        return . Just $ ghcupInstallBasePrefix </> ".ghcup" </> "ghc" </> version </> "bin" </> "ghc"
 
