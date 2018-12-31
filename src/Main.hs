@@ -26,7 +26,7 @@ data Command = Update
              | Show VabalMainArguments
 
 vabalVersion :: String
-vabalVersion = "1.2.0"
+vabalVersion = "2.0.0"
 
 vabalHeader :: String
 vabalHeader = "vabal - The Cabal Companion, version " ++ vabalVersion

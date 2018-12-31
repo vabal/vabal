@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                vabal
-version:             1.2.0
+version:             2.0.0
 synopsis:            the cabal companion
 license:             GPL-3
 license-file:        LICENSE
