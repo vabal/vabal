@@ -10,7 +10,8 @@ Have you ever upgraded GHC just to find all your haskell projects broken?
 
 Have you ever dreamt about treating `base` as all other packages (i.e. change its version without much thought)?
 
-`vabal` tries to determine a `ghc` version that complies with the `base` package constraints found in the `.cabal` file.
+`vabal` tries to determine a `ghc` version that complies with the `base` package constraints (and
+the `Cabal` package constraints in the setup-depends section, if any) found in the `.cabal` file.
 Then it uses [ghcup](https://github.com/haskell/ghcup) to fetch the compiler (if you don't have it yet)
 and prints to stdout the options to pass to `cabal` to use the fetched compiler.
 
@@ -81,7 +82,8 @@ then it will get a compatible version of `ghc` using `ghcup` (possibly downloadi
 and will finally run `cabal v2-configure` to configure the project with the obtained version of `ghc`.
 
 If everything went fine, you now have your project configured to use a `ghc` compatible
-with the constraints imposed on `base`, you can now build your project as you're used to:
+with the constraints imposed on `base` (and the `Cabal` package constraints in the setup-depends section, if any),
+you can now build your project as you're used to:
 > $ cabal v2-build
 
 You can also enable and disable flags for your package, like this:
@@ -134,8 +136,8 @@ In this mode you can compose `vabal` with other `cabal` commands too, also with 
 ----------
 
 Here are some known gotchas that affect `vabal`:
-- `vabal` trusts the constraints imposed on `base` that it finds in the cabal file,
-therefore it only finds a ghc version that makes it possible to respect the constraints,
+- `vabal` trusts the constraints imposed on `base` (and `Cabal` constraints found in the setup-depends section, if any)
+that it finds in the cabal file, therefore it only finds a ghc version that makes it possible to respect the constraints,
 but it is not guaranteed that the build will be successful. (Generally one should always write correct constraints)
 
 
