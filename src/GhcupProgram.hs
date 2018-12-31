@@ -88,10 +88,7 @@ requireGHC installedGhcs ghcVer noInstall = do
     ghcInPathIsGood <- checkGhcInPath version
 
     if ghcInPathIsGood then do
-        ghcLocation <- removeTrailingNewlines
-                       <$> readCreateProcess (shell "command -v ghc") ""
-
-        return ghcLocation
+        removeTrailingNewlines <$> readCreateProcess (shell "command -v ghc") ""
     else do
         let ghcAlreadyInstalled = hasGhcVersion installedGhcs ghcVer
         unless ghcAlreadyInstalled $
