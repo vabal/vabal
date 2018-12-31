@@ -11,7 +11,7 @@ import VabalError
 import System.Directory
 import System.FilePath
 
-import VabalContext
+import GhcDatabase
 
 metadataUrl :: String
 metadataUrl = "https://raw.githubusercontent.com/Franciman/vabal-ghc-metadata/master/vabal-ghc-metadata.csv"
@@ -25,20 +25,20 @@ ghcMetadataFilename :: String
 ghcMetadataFilename = "vabal-ghc-metadata.csv"
 
 
-readGhcMetadata :: FilePath -> IO GhcToBaseMap
-readGhcMetadata filepath = do
+readGhcDatabase :: FilePath -> IO GhcDatabase
+readGhcDatabase filepath = do
     fileExists <- doesFileExist filepath
 
     if not fileExists then
         throwVabalErrorIO "Ghc metadata not found, run `vabal update` to download it."
     else do
       contents <- B.readFile filepath
-      case readGhcToBaseMap contents of
+      case parseGhcDatabase contents of
         Left err -> throwVabalErrorIO $ "Error, could not parse ghc metadata:\n" ++ err
         Right res -> return res
 
-downloadGhcMetadata :: FilePath -> IO ()
-downloadGhcMetadata filepath = do
+downloadGhcDatabase :: FilePath -> IO ()
+downloadGhcDatabase filepath = do
     manager <- N.newTlsManager
     request <- N.parseRequest metadataUrl
     response <- N.httpLbs request manager
@@ -47,5 +47,4 @@ downloadGhcMetadata filepath = do
         throwVabalErrorIO "Error while downloading metadata."
     else
         B.writeFile filepath (N.responseBody response)
-
 

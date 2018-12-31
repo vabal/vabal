@@ -19,7 +19,7 @@ import System.IO (stderr)
 
 import VabalError
 
-import VabalContext
+import GhcDatabase
 
 import System.Process
 import System.Exit
@@ -82,7 +82,7 @@ checkGhcInPath version = do
 -- Asks ghcup to get the provided version for ghc,
 -- It'll return the file path of the downloaded ghc.
 -- If an error occurs a VabalError is thrown.
-requireGHC :: GhcToBaseMap -> Version -> Bool -> IO (Maybe FilePath)
+requireGHC :: GhcDatabase -> Version -> Bool -> IO (Maybe FilePath)
 requireGHC installedGhcs ghcVer noInstall = do
     let version = prettyPrintVersion ghcVer
     ghcPathIsGood <- checkGhcInPath version

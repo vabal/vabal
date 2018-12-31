@@ -14,14 +14,15 @@ import Control.Exception
 import Control.DeepSeq
 
 import VabalContext
+import GhcDatabase
 
 import GhcMetadata
 
 import System.Posix.Temp
 
-cabalAnalyzer :: GhcToBaseMap -> (FilePath, Lazy.ByteString) -> IO Bool
+cabalAnalyzer :: GhcDatabase -> (FilePath, Lazy.ByteString) -> IO Bool
 cabalAnalyzer ghcDb (path, pkg) = do
-    let ctx = VabalContext emptyMap ghcDb False
+    let ctx = VabalContext mempty ghcDb False
     let fun = return . analyzeCabalFileAllTargets (mkFlagAssignment []) ctx Nothing . Lazy.toStrict
 
     let errorHandler :: SomeException -> IO Bool
@@ -55,10 +56,10 @@ main = do
 
     withTmpDir "/tmp/vabal-test-on-hackage" $ \tmpDir -> do
 
-        downloadGhcMetadata $ tmpDir </> "ghc-metadata.csv"
+        downloadGhcDatabase $ tmpDir </> "ghc-metadata.csv"
         putStrLn "Metadata downloaded."
 
-        ghcDb <- readGhcMetadata $ tmpDir </> "ghc-metadata.csv"
+        ghcDb <- readGhcDatabase $ tmpDir </> "ghc-metadata.csv"
         putStrLn "Metadata read."
 
         let entries = Tar.read indexContents

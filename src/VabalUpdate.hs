@@ -12,6 +12,6 @@ vabalUpdate :: IO ()
 vabalUpdate = do
     dir <- getGhcMetadataDir
     createDirectoryIfMissing True dir
-    downloadGhcMetadata (dir </> ghcMetadataFilename)
+    downloadGhcDatabase (dir </> ghcMetadataFilename)
     writeOutput "Vabal successfully updated."
 

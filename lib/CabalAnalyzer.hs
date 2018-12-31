@@ -43,9 +43,12 @@ makeCompilerInfo  v = unknownCompilerInfo (CompilerId GHC v) NoAbiTag
 isBase :: Dependency -> Bool
 isBase (Dependency packageName _) = unPackageName packageName == "base"
 
-extractBaseConstraints :: [Dependency] -> VersionRange
-extractBaseConstraints deps =
-    let constraints = depVerRange <$> filter isBase deps
+isCabalLib :: Dependency -> Bool
+isCabalLib (Dependency packageName _) = unPackageName packageName == "Cabal"
+
+extractConstraints :: (Dependency -> Bool) -> [Dependency] -> VersionRange
+extractConstraints predicate deps =
+    let constraints = depVerRange <$> filter predicate deps
     in foldr intersectVersionRanges anyVersion constraints
 
 -- This is our dead simple dependency solver
@@ -56,12 +59,12 @@ queryDependency allowedBaseRange dep@(Dependency _ range)
    | isBase dep =  not . isNoVersion $ intersectVersionRanges range allowedBaseRange
    | otherwise  = True
 
-constraintsForBase :: FlagAssignment
-                   -> GenericPackageDescription
-                   -> VersionRange
-                   -> CompilerInfo
-                   -> Maybe VersionRange
-constraintsForBase flags pkgDescr otherBaseConstraints compiler =
+constraintsForBaseAndCabalLib :: FlagAssignment
+                              -> GenericPackageDescription
+                              -> VersionRange
+                              -> CompilerInfo
+                              -> Maybe (VersionRange, VersionRange)
+constraintsForBaseAndCabalLib flags pkgDescr otherBaseConstraints compiler =
     let finalizedPkgDescr = finalizePD flags
                             (ComponentRequestedSpec True True)
                             (queryDependency otherBaseConstraints)
@@ -85,18 +88,33 @@ constraintsForBase flags pkgDescr otherBaseConstraints compiler =
                                     ]
 
                 dependencies = setupDependencies ++ projectDependencies
-                baseConstraints = map extractBaseConstraints dependencies
+                baseConstraints = map (extractConstraints isBase) dependencies
+                baseVr = foldr intersectVersionRanges anyVersion baseConstraints
+
+                cabalLibConstraints = map (extractConstraints isCabalLib) setupDependencies
+                cabalLibVr = foldr intersectVersionRanges anyVersion cabalLibConstraints
             -- If constraints is empty, then no constraint is imposed on `base`
             -- and thus, any version of ghc is fine
-            in Just $ foldr intersectVersionRanges anyVersion baseConstraints
+            in Just (baseVr, cabalLibVr)
 
+
+findCandidate :: FlagAssignment
+              -> GenericPackageDescription
+              -> GhcDatabase
+              -> (VersionRange, CompilerInfo)
+              -> Maybe Version
+findCandidate flags pkgDescr db (vr, ci) = do
+    (baseConstraints, cabalLibConstraints) <- constraintsForBaseAndCabalLib flags pkgDescr vr ci
+    let db' = entriesWithBaseVersionIn db baseConstraints
+    let db'' = entriesWithMinCabalVersionIn db' cabalLibConstraints
+    fst <$> newest db''
 
 analyzeCabalFileAllTargets :: FlagAssignment
                            -> VabalContext
                            -> Maybe Version
                            -> B.ByteString
                            -> Version
-analyzeCabalFileAllTargets flags ctx  baseVersionConstraint cabalFile =
+analyzeCabalFileAllTargets flags ctx baseVersionConstraint cabalFile =
     case parseGenericPackageDescriptionMaybe cabalFile of
         Nothing -> cannotParseCabalFileError
         Just pkgDescr -> {-# SCC "vabal-core" #-}
@@ -107,15 +125,13 @@ analyzeCabalFileAllTargets flags ctx  baseVersionConstraint cabalFile =
                 candidates = map (fmap makeCompilerInfo) -- turn a GhcVersion in CompilerInfo
                            $ findGhcVersions (allGhcInfo ctx) otherBaseConstraints pkgDescr
 
-                allBaseConstraints = map (uncurry $ constraintsForBase flags pkgDescr) candidates
-
                 newestGhcCandidate =
                         -- Get first compatible compiler
-                        msum $ map (>>= newestGhcVersionIn (allGhcInfo ctx)) allBaseConstraints
+                        msum $ map (findCandidate flags pkgDescr (allGhcInfo ctx)) candidates
 
                 availableGhcCandidate = 
                         -- Get first compatible compiler, amongst the available
-                        msum $ map (>>= newestGhcVersionIn (availableGhcs ctx)) allBaseConstraints
+                        msum $ map (findCandidate flags pkgDescr (availableGhcs ctx)) candidates
 
                 ghcCandidate =
                     if alwaysNewestGhc ctx then
@@ -136,14 +152,25 @@ checkIfGivenVersionWorksForAllTargets flags ctx cabalFile selectedGhcVersion =
         Nothing -> cannotParseCabalFileError
         Just pkgDescr ->
             let ghc = makeCompilerInfo selectedGhcVersion
-            in case constraintsForBase flags pkgDescr anyVersion ghc of
+            in case constraintsForBaseAndCabalLib flags pkgDescr anyVersion ghc of
                 Nothing -> unableToSatisfyConstraintsError
-                Just suggestedBaseVersionRange ->
+                Just (suggestedBaseVersionRange, suggestedCabalLibVersionRange) ->
                     -- Check if the selected ghc is one of the suggested ones
                     -- If we can't find the base version for the selected ghc,
                     -- then we don't recognize it and we say it may not be good.
                     -- Otherwise we check if its base version fits inside
                     -- the suggested base version range
-                    maybe False (`withinRange` suggestedBaseVersionRange) $
-                          baseVersionForGhc (allGhcInfo ctx) selectedGhcVersion
+                    let selectedGhcBaseVersion = baseVersionForGhc (allGhcInfo ctx) selectedGhcVersion
+                        selectedGhcCabalLibRange = cabalLibRangeForGhc (allGhcInfo ctx) selectedGhcVersion
+
+                    in fromMaybe False $ do
+                            baseVersionIsFine <- (`withinRange` suggestedBaseVersionRange)
+                                                 <$> selectedGhcBaseVersion
+
+                            cabalVersionIsFine <- not
+                                                . isNoVersion
+                                                . intersectVersionRanges suggestedCabalLibVersionRange
+                                                <$> selectedGhcCabalLibRange
+
+                            return $ baseVersionIsFine && cabalVersionIsFine
 

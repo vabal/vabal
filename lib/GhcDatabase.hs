@@ -1,45 +1,75 @@
-module GhcDatabase
-( newestGhcVersion            -- :: GhcToBaseMap -> GhcVersion
-, ghcVersionsWithBaseIn       -- :: GhcToBaseMap -> VersionRange -> [GhcVersion]
-, newestGhcVersionIn          -- :: GhcToBaseMap -> VersionRange -> Maybe GhcVersion
-, baseVersionsIn              -- :: GhcToBaseMap -> VersionRange -> [BaseVersion]
-, newestBaseVersionIn         -- :: GhcToBaseMap -> VersionRange -> Maybe GhcVersion
-, baseVersionForGhc           -- :: GhcToBaseMap -> GhcVersion -> Maybe BaseVersion
-) where
+{-# LANGUAGE OverloadedStrings #-}
+module GhcDatabase where
 
 import Distribution.Version
-import Data.Maybe (listToMaybe)
-import Data.List (find)
 
-import VabalContext
+import Distribution.Parsec.Class
+
+import Data.Csv
+
+import Data.Foldable (toList)
+
+import qualified Data.ByteString.Lazy as B
+
+import qualified Data.Map.Strict as M
+import qualified Data.Set as S
+
 
 type GhcVersion = Version
 type BaseVersion = Version
 
 
-newestGhcVersion :: GhcToBaseMap -> GhcVersion
-newestGhcVersion = ghcVersion . head . unwrapMap
+data GhcMetadata = GhcMetadata
+                 { baseVersion     :: Version
+                 , minCabalVersion :: Version
+                 }
+
+newtype MetadataEntry = MetadataEntry { unwrapMetadataEntry :: (Version, GhcMetadata) }
+
+instance FromNamedRecord MetadataEntry  where
+    parseNamedRecord r = do
+        field1  <- r .: "ghcVersion"
+        ghcVer  <- maybe (fail "Expected version") return $ simpleParsec field1
+        field2  <- r .: "baseVersion"
+        baseVer <- maybe (fail "Expected version") return $ simpleParsec field2
+        field3 <- r .: "minCabalVersion"
+        minCabalVer <- maybe (fail "Expected version") return $ simpleParsec field3
+        return $ MetadataEntry (ghcVer, GhcMetadata baseVer minCabalVer)
+
+
+type GhcDatabase = M.Map Version GhcMetadata
+
+parseGhcDatabase :: B.ByteString -> Either String GhcDatabase
+parseGhcDatabase contents = do
+    (_, entries) <- decodeByName contents
+    return . M.fromList . map unwrapMetadataEntry $ toList entries
+
+filterGhcVersions :: GhcDatabase -> S.Set Version -> GhcDatabase
+filterGhcVersions = M.restrictKeys
+
+hasGhcVersion :: GhcDatabase -> Version -> Bool
+hasGhcVersion s v = v `M.member` s
+
 
 isVersionInRange :: VersionRange -> Version -> Bool
 isVersionInRange = flip withinRange
 
-entriesWithBaseVersionIn :: GhcToBaseMap -> VersionRange -> [GhcMetadata]
-entriesWithBaseVersionIn gtb vr =
-    filter (isVersionInRange vr . baseVersion) (unwrapMap gtb)
+newest :: GhcDatabase -> Maybe (Version, GhcMetadata)
+newest = M.lookupMax
 
--- The GhcVersions are in decreasing order
-ghcVersionsWithBaseIn :: GhcToBaseMap -> VersionRange -> [GhcVersion]
-ghcVersionsWithBaseIn gtb vr = ghcVersion <$> entriesWithBaseVersionIn gtb vr
+entriesWithBaseVersionIn :: GhcDatabase -> VersionRange -> GhcDatabase
+entriesWithBaseVersionIn db vr = M.filter (isVersionInRange vr . baseVersion) db
 
-newestGhcVersionIn :: GhcToBaseMap -> VersionRange -> Maybe GhcVersion
-newestGhcVersionIn gtb = listToMaybe . ghcVersionsWithBaseIn gtb
+entriesWithMinCabalVersionIn :: GhcDatabase -> VersionRange -> GhcDatabase
+entriesWithMinCabalVersionIn db vr =
+    M.filter (not . isNoVersion . intersectVersionRanges vr . orLaterVersion . minCabalVersion) db
 
--- The BaseVersions are in decreasing order
-baseVersionsIn :: GhcToBaseMap -> VersionRange -> [BaseVersion]
-baseVersionsIn gtb vr = baseVersion <$> entriesWithBaseVersionIn gtb vr
+metadataForGhc :: GhcDatabase -> Version -> Maybe GhcMetadata
+metadataForGhc db v = M.lookup v db
 
-newestBaseVersionIn :: GhcToBaseMap -> VersionRange -> Maybe BaseVersion
-newestBaseVersionIn gtb = listToMaybe . baseVersionsIn gtb
+baseVersionForGhc :: GhcDatabase -> Version -> Maybe Version
+baseVersionForGhc db v = baseVersion <$> metadataForGhc db v
 
-baseVersionForGhc :: GhcToBaseMap -> GhcVersion -> Maybe BaseVersion
-baseVersionForGhc gtb v = baseVersion <$> find ((v ==) . ghcVersion) (unwrapMap gtb)
+cabalLibRangeForGhc :: GhcDatabase -> Version -> Maybe VersionRange
+cabalLibRangeForGhc db v = orLaterVersion . minCabalVersion <$> metadataForGhc db v
+

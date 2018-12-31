@@ -12,6 +12,8 @@ import System.FilePath
 import VabalError
 
 import VabalContext
+import GhcDatabase
+
 import GhcupProgram
 
 import CabalAnalyzer
@@ -22,6 +24,8 @@ import XArgsEscape
 import Control.Monad (unless)
 
 import qualified Data.ByteString as B
+
+import qualified Data.Set as S
 
 data VabalMainArguments = VabalMainArguments
                { versionSpecification :: VersionSpecification
@@ -70,8 +74,8 @@ vabalMain args = do
     let ghcMetadataPath = ghcMetadataDir </> ghcMetadataFilename
     let flags = configFlags args
 
-    ghcDb <- readGhcMetadata ghcMetadataPath
-    installedGhcs <- subMap ghcDb <$> getInstalledGhcs
+    ghcDb <- readGhcDatabase ghcMetadataPath
+    installedGhcs <- filterGhcVersions ghcDb . S.fromList <$> getInstalledGhcs
 
     let vabalCtx = VabalContext installedGhcs ghcDb(alwaysNewestFlag args)
 
@@ -126,5 +130,4 @@ generateCabalOptions args ghcLocation =
                              Just cabalFilePath -> "\n--cabal-file\n" ++ escapeForXArgs cabalFilePath
 
     in dropWhile (== '\n') $ outputGhcLocationArg ++ outputFlagsArg ++ outputCabalFile -- Remove initial newlines
-
 

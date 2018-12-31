@@ -41,7 +41,8 @@ library
                        http-client          >= 0.5.14 && < 0.6,
                        http-types           >= 0.12.2 && < 0.13,
                        http-client-tls      >= 0.3.5 && < 0.4,
-                       vector               >= 0.12.0 && < 0.13
+                       vector               >= 0.12.0 && < 0.13,
+                       containers
 
   hs-source-dirs:      lib/
   ghc-options:         -Wall
@@ -62,6 +63,7 @@ executable vabal
                        filepath             >= 1.4.2 && < 1.5,
                        optparse-applicative >= 0.14.3 && < 0.15,
                        process              >= 1.6.3 && < 1.7,
+                       containers,
                        vabal
 
   hs-source-dirs:      src/
