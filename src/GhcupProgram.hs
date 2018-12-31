@@ -82,13 +82,16 @@ checkGhcInPath version = do
 -- Asks ghcup to get the provided version for ghc,
 -- It'll return the file path of the downloaded ghc.
 -- If an error occurs a VabalError is thrown.
-requireGHC :: GhcDatabase -> Version -> Bool -> IO (Maybe FilePath)
+requireGHC :: GhcDatabase -> Version -> Bool -> IO FilePath
 requireGHC installedGhcs ghcVer noInstall = do
     let version = prettyPrintVersion ghcVer
-    ghcPathIsGood <- checkGhcInPath version
+    ghcInPathIsGood <- checkGhcInPath version
 
-    if ghcPathIsGood then
-        return Nothing
+    if ghcInPathIsGood then do
+        ghcLocation <- removeTrailingNewlines
+                       <$> readCreateProcess (shell "command -v ghc") ""
+
+        return ghcLocation
     else do
         let ghcAlreadyInstalled = hasGhcVersion installedGhcs ghcVer
         unless ghcAlreadyInstalled $
@@ -107,5 +110,5 @@ requireGHC installedGhcs ghcVer noInstall = do
         ghcupInstallBasePrefix <- fromMaybe homeDir
                                   <$> lookupEnv "GHCUP_INSTALL_BASE_PREFIX"
 
-        return . Just $ ghcupInstallBasePrefix </> ".ghcup" </> "ghc" </> version </> "bin" </> "ghc"
+        return $ ghcupInstallBasePrefix </> ".ghcup" </> "ghc" </> version </> "bin" </> "ghc"
 
