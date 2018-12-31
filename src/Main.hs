@@ -16,12 +16,14 @@ import Data.Maybe (maybeToList)
 import VabalMain
 import VabalConfigure
 import VabalUpdate
+import VabalShow
 
 import UserInterface
 
 data Command = Update
              | Main VabalMainArguments
              | Configure [String] [String]
+             | Show VabalMainArguments
 
 vabalVersion :: String
 vabalVersion = "1.2.0"
@@ -44,6 +46,14 @@ configureParserInfo cabalArgs vabalArgs =
     <> progDesc configureProgDesc
     )
 
+showParserInfo :: ParserInfo Command
+showParserInfo =
+    info ((Show <$> showArgumentsParser) <**> helper)
+    ( fullDesc
+    <> progDesc showProgDesc
+    <> header vabalHeader
+    )
+
 mainParserInfo :: ParserInfo Command
 mainParserInfo =
     info ((Main <$> mainArgumentsParser) <**> helper)
@@ -57,6 +67,8 @@ mainParserInfo =
                             ( string "vabal update (See vabal update --help)"
                               <> linebreak
                               <> string "vabal configure (See vabal configure --help)"
+                              <> linebreak
+                              <> string "vabal show (See vabal show --help)"
                             )
                       )
          )
@@ -89,6 +101,11 @@ parseArgs ("configure" : args) =
        . overFailure (updateExeName "vabal configure" parserInfo True)
        $ execParserPure defaultPrefs parserInfo vabalArgs
 
+parseArgs ("show" : args) =
+    handleParseResult
+    . overFailure (updateExeName "vabal show" showParserInfo False)
+    $ execParserPure defaultPrefs showParserInfo args
+
 parseArgs args = handleParseResult (execParserPure defaultPrefs mainParserInfo args)
 
 
@@ -106,5 +123,6 @@ main = do
             Update -> vabalUpdate
             Main args -> vabalMain args
             Configure cabalArgs args -> vabalConfigure cabalArgs args
+            Show args -> vabalShow args
 
 

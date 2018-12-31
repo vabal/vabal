@@ -21,6 +21,8 @@ import UserInterface
 
 import XArgsEscape
 
+import Distribution.Types.Version
+
 import Control.Monad (unless)
 
 import qualified Data.ByteString as B
@@ -65,44 +67,50 @@ mainProgDesc = "Finds a version of GHC that is compatible with \
                \ See \"vabal configure --help\" for info about how to \
                \ directly configure your project to use the found GHC compiler."
 
-vabalMain :: VabalMainArguments -> IO ()
-vabalMain args = do
+makeVabalContext :: VabalMainArguments -> IO VabalContext
+makeVabalContext args = do
     ghcMetadataDir <- getGhcMetadataDir
-    cabalFilePath <- maybe findCabalFile return (cabalFile args)
-    cabalFileContents <- B.readFile cabalFilePath
-
     let ghcMetadataPath = ghcMetadataDir </> ghcMetadataFilename
-    let flags = configFlags args
-
     ghcDb <- readGhcDatabase ghcMetadataPath
     installedGhcs <- filterGhcVersions ghcDb . S.fromList <$> getInstalledGhcs
 
-    let vabalCtx = VabalContext installedGhcs ghcDb(alwaysNewestFlag args)
+    return $ VabalContext installedGhcs ghcDb (alwaysNewestFlag args)
 
-    version <- case versionSpecification args of
-                    GhcVersion ghcVer -> do
-                        let res = checkIfGivenVersionWorksForAllTargets flags
-                                                                        vabalCtx
-                                                                        cabalFileContents
-                                                                        ghcVer
-                        unless res $
-                            writeWarning "Warning: The specified ghc version probably won't work."
-                        return ghcVer
+vabalFindGhcVersion :: VabalMainArguments -> VabalContext -> IO Version
+vabalFindGhcVersion args vabalCtx = do
+    cabalFilePath <- maybe findCabalFile return (cabalFile args)
+    cabalFileContents <- B.readFile cabalFilePath
 
-                    BaseVersion baseVer -> return $
-                                  analyzeCabalFileAllTargets flags
-                                                             vabalCtx
-                                                             (Just baseVer)
-                                                             cabalFileContents
+    let flags = configFlags args
 
-                    NoSpecification -> return $
-                                  analyzeCabalFileAllTargets flags
-                                                             vabalCtx
-                                                             Nothing
-                                                             cabalFileContents
+    case versionSpecification args of
+        GhcVersion ghcVer -> do
+            let res = checkIfGivenVersionWorksForAllTargets flags
+                                                            vabalCtx
+                                                            cabalFileContents
+                                                            ghcVer
+            unless res $
+                writeWarning "Warning: The specified ghc version probably won't work."
+            return ghcVer
+
+        BaseVersion baseVer -> return $
+                      analyzeCabalFileAllTargets flags
+                                                 vabalCtx
+                                                 (Just baseVer)
+                                                 cabalFileContents
+
+        NoSpecification -> return $
+                      analyzeCabalFileAllTargets flags
+                                                 vabalCtx
+                                                 Nothing
+                                                 cabalFileContents
 
 
-    ghcLocation <- requireGHC installedGhcs version (noInstallFlag args)
+vabalMain :: VabalMainArguments -> IO ()
+vabalMain args = do
+    vabalCtx <- makeVabalContext args
+    version <- vabalFindGhcVersion args vabalCtx
+    ghcLocation <- requireGHC (availableGhcs vabalCtx) version (noInstallFlag args)
     writeMessage $ "Selected GHC version: " ++ prettyPrintVersion version
 
     -- Output generation

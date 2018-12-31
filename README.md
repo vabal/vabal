@@ -120,6 +120,9 @@ In fact, `vabal configure` is just a shortcut for:
 
 In this mode you can compose `vabal` with other `cabal` commands too, also with old-style `cabal build`, `cabal configure`, etc..
 
+There is one last command available, it is `vabal show`, it does the same things `vabal` does,
+but instead of printing to stdout the options to pass to cabal, it just prints the version of the obtained `ghc`.
+
 (*) Remark: 
 > The `-r` flag you see is only available in the GNU version of `xargs`. It makes xargs fail if its input is empty,
 > i.e. when vabal fails. This is necessary or cabal will run as well without arguments from vabal.
