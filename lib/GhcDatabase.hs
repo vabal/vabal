@@ -60,8 +60,8 @@ newest = M.lookupMax
 entriesWithBaseVersionIn :: GhcDatabase -> VersionRange -> GhcDatabase
 entriesWithBaseVersionIn db vr = M.filter (isVersionInRange vr . baseVersion) db
 
-entriesWithMinCabalVersionIn :: GhcDatabase -> VersionRange -> GhcDatabase
-entriesWithMinCabalVersionIn db vr =
+entriesCompatibleWithCabalVersionRange :: GhcDatabase -> VersionRange -> GhcDatabase
+entriesCompatibleWithCabalVersionRange db vr =
     M.filter (not . isNoVersion . intersectVersionRanges vr . orLaterVersion . minCabalVersion) db
 
 metadataForGhc :: GhcDatabase -> Version -> Maybe GhcMetadata

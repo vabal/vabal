@@ -106,7 +106,7 @@ findCandidate :: FlagAssignment
 findCandidate flags pkgDescr db (vr, ci) = do
     (baseConstraints, cabalLibConstraints) <- constraintsForBaseAndCabalLib flags pkgDescr vr ci
     let db' = entriesWithBaseVersionIn db baseConstraints
-    let db'' = entriesWithMinCabalVersionIn db' cabalLibConstraints
+    let db'' = entriesCompatibleWithCabalVersionRange db' cabalLibConstraints
     fst <$> newest db''
 
 analyzeCabalFileAllTargets :: FlagAssignment
