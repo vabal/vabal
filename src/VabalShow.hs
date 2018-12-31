@@ -5,6 +5,7 @@ import Options.Applicative
 import VabalMain
 
 import UserInterface
+import VabalContext
 import GhcupProgram
 
 showArgumentsParser :: Parser VabalMainArguments
@@ -23,4 +24,5 @@ vabalShow :: VabalMainArguments -> IO ()
 vabalShow args = do
     vabalCtx <- makeVabalContext args
     version <- vabalFindGhcVersion args vabalCtx
+    _ <- requireGHC (availableGhcs vabalCtx) version (noInstallFlag args)
     writeOutput $ prettyPrintVersion version
