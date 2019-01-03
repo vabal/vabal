@@ -120,13 +120,16 @@ vabalMain args = do
     writeMessage $ "Selected GHC version: " ++ prettyPrintVersion (envGhcVersion envParams)
 
     -- Output generation
-    writeOutput $ generateCabalOptions args (toList options)
+    -- Ensure that the option list is non-empty
+    case options of
+        [] -> throwVabalErrorIO "Internal error, the GhcupBackend returned an empty list of options, this shouldn't be possible. Report this bug."
+        _  -> writeOutput $ generateCabalOptions args options
 
 
 generateCabalOptions :: VabalMainArguments -> [CabalOption] -> String
 generateCabalOptions args options =
     let flagsOutput = unwords
-              . map showFlagValue $ unFlagAssignment (configFlags args)
+                    . map showFlagValue $ unFlagAssignment (configFlags args)
 
         outputOptions = intercalate "\n" (map escapeForXArgs options)
         outputFlagsArg = if null flagsOutput then

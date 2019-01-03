@@ -62,7 +62,7 @@ makeCabal2NixFlags ass = intercalate " " $ map renderFlag $ unFlagAssignment ass
 nixSetupEnv :: EnvParams
             -> GhcDatabase
             -> Bool
-            -> IO (NonEmptyList CabalOption)
+            -> IO [CabalOption]
 nixSetupEnv envParams installedGhcs noInstall = do
     let ghcVer = envGhcVersion envParams
     if not (hasGhcVersion installedGhcs ghcVer) && noInstall then
@@ -85,7 +85,7 @@ nixSetupEnv envParams installedGhcs noInstall = do
         exitCode <- runExternalProcess "nix-shell" ["-p", "cabal2nix", "--run", nixShellScript]
         case exitCode of
             ExitFailure _ -> throwVabalErrorIO "Error while running cabal2nix inside nix-shell."
-            ExitSuccess   -> return $ singleton "--enable-nix"
+            ExitSuccess   -> return []
 
 nixBackend :: Backend
 nixBackend = Backend

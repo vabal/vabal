@@ -94,10 +94,10 @@ ghcupRequireGHC installedGhcs ghcVer noInstall = do
 ghcupSetupEnv :: EnvParams
               -> GhcDatabase
               -> Bool
-              -> IO (NonEmptyList CabalOption)
+              -> IO [CabalOption]
 ghcupSetupEnv envParams installedGhcs noInstall = do
     ghcLoc <- ghcupRequireGHC installedGhcs (envGhcVersion envParams) noInstall
-    return $ cons "-w" [ghcLoc]
+    return ["-w", ghcLoc]
 
 ghcupBackend :: Backend
 ghcupBackend = Backend
