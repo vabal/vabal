@@ -1,6 +1,4 @@
-module GhcupProgram where
-
-import Data.List (intercalate)
+module GhcupBackend (ghcupBackend) where
 
 import System.Directory
 import Control.Exception (SomeException, handle)
@@ -15,8 +13,6 @@ import Control.Monad (unless)
 
 import Data.Maybe (fromMaybe, maybeToList)
 
-import System.IO (stderr)
-
 import VabalError
 
 import GhcDatabase
@@ -24,23 +20,9 @@ import GhcDatabase
 import System.Process
 import System.Exit
 
-runExternalProcess :: FilePath -> [String] -> IO ExitCode
-runExternalProcess bin args = do
-    let processDescr = (proc bin args)
-                     { std_out = UseHandle stderr
-                     , std_err = UseHandle stderr
-                     }
-    (_, _, _, procHandle) <- createProcess processDescr
-    waitForProcess procHandle
+import Backend
 
-removeTrailingNewlines :: String -> String
-removeTrailingNewlines = reverse . dropWhile (== '\n') . reverse
-
-prettyPrintVersion :: Version -> String
-prettyPrintVersion ver = intercalate "." $ map show (versionNumbers ver)
-
-trimVersionString :: String -> String
-trimVersionString = dropWhile (== ' ')
+import Utils
 
 unableToReadGhcupOutputError :: a
 unableToReadGhcupOutputError = throwVabalError "Could not parse ghcup output."
@@ -54,8 +36,8 @@ ghcInPathVersion = do
         ghcVer <- removeTrailingNewlines <$> readProcess "ghc" ["--numeric-version"] ""
         return $ Just ghcVer
 
-getInstalledGhcs :: IO [Version]
-getInstalledGhcs = do
+ghcupGetInstalledGhcs :: IO [Version]
+ghcupGetInstalledGhcs = do
     output <- readProcess "ghcup" ["show"] ""
 
     let ghcupInstalledVersions = filter (/= "None") -- Ignore the None line (when there is no ghc installed)
@@ -82,8 +64,8 @@ checkGhcInPath version = do
 -- Asks ghcup to get the provided version for ghc,
 -- It'll return the file path of the downloaded ghc.
 -- If an error occurs a VabalError is thrown.
-requireGHC :: GhcDatabase -> Version -> Bool -> IO FilePath
-requireGHC installedGhcs ghcVer noInstall = do
+ghcupRequireGHC :: GhcDatabase -> Version -> Bool -> IO FilePath
+ghcupRequireGHC installedGhcs ghcVer noInstall = do
     let version = prettyPrintVersion ghcVer
     ghcInPathIsGood <- checkGhcInPath version
 
@@ -109,3 +91,16 @@ requireGHC installedGhcs ghcVer noInstall = do
 
         return $ ghcupInstallBasePrefix </> ".ghcup" </> "ghc" </> version </> "bin" </> "ghc"
 
+ghcupSetupEnv :: EnvParams
+              -> GhcDatabase
+              -> Bool
+              -> IO (NonEmptyList CabalOption)
+ghcupSetupEnv envParams installedGhcs noInstall = do
+    ghcLoc <- ghcupRequireGHC installedGhcs (envGhcVersion envParams) noInstall
+    return $ cons "-w" [ghcLoc]
+
+ghcupBackend :: Backend
+ghcupBackend = Backend
+             { getInstalledGhcs = ghcupGetInstalledGhcs
+             , setupEnv         = ghcupSetupEnv
+             }

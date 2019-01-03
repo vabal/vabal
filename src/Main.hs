@@ -17,6 +17,7 @@ import VabalMain
 import VabalConfigure
 import VabalUpdate
 import VabalShow
+import VabalNix
 
 import UserInterface
 
@@ -24,6 +25,7 @@ data Command = Update
              | Main VabalMainArguments
              | Configure [String] [String]
              | Show VabalMainArguments
+             | Nix VabalMainArguments
 
 vabalVersion :: String
 vabalVersion = "2.0.0"
@@ -54,6 +56,14 @@ showParserInfo =
     <> header vabalHeader
     )
 
+nixParserInfo :: ParserInfo Command
+nixParserInfo =
+    info ((Nix <$> nixArgumentsParser) <**> helper)
+    ( fullDesc
+    <> progDesc nixProgDesc
+    <> header vabalHeader
+    )
+
 mainParserInfo :: ParserInfo Command
 mainParserInfo =
     info ((Main <$> mainArgumentsParser) <**> helper)
@@ -69,9 +79,12 @@ mainParserInfo =
                               <> string "vabal configure (See vabal configure --help)"
                               <> linebreak
                               <> string "vabal show (See vabal show --help)"
+                              <> linebreak
+                              <> string "vabal nix (See vabal nix --help)"
                             )
                       )
          )
+
 
 updateExeName :: String -> ParserInfo a -> Bool -> ParserHelp -> ParserHelp
 updateExeName name pinfo addTrailingCabalArgs old =
@@ -106,6 +119,11 @@ parseArgs ("show" : args) =
     . overFailure (updateExeName "vabal show" showParserInfo False)
     $ execParserPure defaultPrefs showParserInfo args
 
+parseArgs ("nix" : args) =
+    handleParseResult
+    . overFailure (updateExeName "vabal nix" nixParserInfo False)
+    $ execParserPure defaultPrefs nixParserInfo args
+
 parseArgs args = handleParseResult (execParserPure defaultPrefs mainParserInfo args)
 
 
@@ -124,5 +142,6 @@ main = do
             Main args -> vabalMain args
             Configure cabalArgs args -> vabalConfigure cabalArgs args
             Show args -> vabalShow args
+            Nix args -> vabalNix args
 
 
