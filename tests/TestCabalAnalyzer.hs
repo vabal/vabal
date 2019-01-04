@@ -4,8 +4,6 @@ import qualified Data.ByteString as B
 
 import Distribution.Types.GenericPackageDescription
 
-import System.FilePath
-
 import CabalAnalyzer
 
 import VabalContext
@@ -16,6 +14,8 @@ import System.Exit
 import Distribution.Types.Version
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
+
+import Paths_vabal (getDataFileName)
 
 testDb :: GhcDatabase
 testDb = M.fromList
@@ -52,22 +52,23 @@ testDb = M.fromList
     ]
 
 data CabalFileTest = CabalFileTest
-                   { cabalFilePath :: FilePath
+                   { cabalFile :: FilePath
                    , acceptableResults :: S.Set Version
                    }
 
 performTest :: GhcDatabase -> CabalFileTest -> IO ()
-performTest ghcDb (CabalFileTest filePath acceptableRes) = do
+performTest ghcDb (CabalFileTest cf acceptableRes) = do
+    filePath <- getDataFileName cf
     putStrLn $ "Testing: " ++ filePath
 
     let vabalCtx = VabalContext mempty ghcDb False
     contents <- B.readFile filePath
-    let version = analyzeCabalFileAllTargets (mkFlagAssignment []) vabalCtx Nothing contents
-    if version `S.member` acceptableRes then
+    let ghcVer = analyzeCabalFileAllTargets (mkFlagAssignment []) vabalCtx Nothing contents
+    if ghcVer `S.member` acceptableRes then
         putStrLn "Test passed!"
     else do
         putStrLn $ "Test for package: " ++ filePath ++ " failed!"
-        putStrLn $ "Got GHC Version: " ++ show version
+        putStrLn $ "Got GHC Version: " ++ show ghcVer
         putStrLn $ "Expected one of: " ++ show acceptableRes
 
         exitFailure
@@ -77,13 +78,13 @@ performTest ghcDb (CabalFileTest filePath acceptableRes) = do
 main :: IO ()
 main = do
 
-    let cabalFileTests = [ CabalFileTest ("tests" </> "testCabalFiles" </> "lens.cabal")
+    let cabalFileTests = [ CabalFileTest "tests/testCabalFiles/lens.cabal"
                                          (S.fromList [mkVersion [8,6,3]])
 
-                         , CabalFileTest ("tests" </> "testCabalFiles" </> "cairo.cabal")
+                         , CabalFileTest "tests/testCabalFiles/cairo.cabal"
                                          (S.fromList [mkVersion [8,4,4]])
 
-                         , CabalFileTest ("tests" </> "testCabalFiles" </> "sdl2.cabal")
+                         , CabalFileTest "tests/testCabalFiles/sdl2.cabal"
                                          (S.fromList [mkVersion [8,6,3]])
                          ]
 
