@@ -14,16 +14,18 @@ import VabalError
 import VabalContext
 import GhcDatabase
 
-import GhcupProgram
+import GhcupBackend
+import Backend
 
 import CabalAnalyzer
 import UserInterface
 
 import XArgsEscape
 
-import Distribution.Types.Version
+import Utils
 
 import Control.Monad (unless)
+import Data.List (intercalate)
 
 import qualified Data.ByteString as B
 
@@ -67,62 +69,69 @@ mainProgDesc = "Finds a version of GHC that is compatible with \
                \ See \"vabal configure --help\" for info about how to \
                \ directly configure your project to use the found GHC compiler."
 
-makeVabalContext :: VabalMainArguments -> IO VabalContext
-makeVabalContext args = do
+makeVabalContext :: Backend -> VabalMainArguments -> IO VabalContext
+makeVabalContext backend args = do
     ghcMetadataDir <- getGhcMetadataDir
     let ghcMetadataPath = ghcMetadataDir </> ghcMetadataFilename
     ghcDb <- readGhcDatabase ghcMetadataPath
-    installedGhcs <- filterGhcVersions ghcDb . S.fromList <$> getInstalledGhcs
+    installedGhcs <- filterGhcVersions ghcDb . S.fromList <$> (getInstalledGhcs backend)
 
     return $ VabalContext installedGhcs ghcDb (alwaysNewestFlag args)
 
-vabalFindGhcVersion :: VabalMainArguments -> VabalContext -> IO Version
-vabalFindGhcVersion args vabalCtx = do
+vabalMakeEnvParams :: VabalMainArguments -> VabalContext -> IO EnvParams
+vabalMakeEnvParams args vabalCtx = do
     cabalFilePath <- maybe findCabalFile return (cabalFile args)
     cabalFileContents <- B.readFile cabalFilePath
 
     let flags = configFlags args
 
-    case versionSpecification args of
-        GhcVersion ghcVer -> do
-            let res = checkIfGivenVersionWorksForAllTargets flags
-                                                            vabalCtx
-                                                            cabalFileContents
-                                                            ghcVer
-            unless res $
-                writeWarning "Warning: The specified ghc version probably won't work."
-            return ghcVer
+    version <- case versionSpecification args of
+                    GhcVersion ghcVer -> do
+                        let res = checkIfGivenVersionWorksForAllTargets flags
+                                                                        vabalCtx
+                                                                        cabalFileContents
+                                                                        ghcVer
+                        unless res $
+                            writeWarning "Warning: The specified ghc version probably won't work."
+                        return ghcVer
 
-        BaseVersion baseVer -> return $
-                      analyzeCabalFileAllTargets flags
-                                                 vabalCtx
-                                                 (Just baseVer)
-                                                 cabalFileContents
+                    BaseVersion baseVer -> return $
+                                  analyzeCabalFileAllTargets flags
+                                                             vabalCtx
+                                                             (Just baseVer)
+                                                             cabalFileContents
 
-        NoSpecification -> return $
-                      analyzeCabalFileAllTargets flags
-                                                 vabalCtx
-                                                 Nothing
-                                                 cabalFileContents
+                    NoSpecification -> return $
+                                  analyzeCabalFileAllTargets flags
+                                                             vabalCtx
+                                                             Nothing
+                                                             cabalFileContents
+
+    return $ EnvParams flags cabalFilePath version
 
 
 vabalMain :: VabalMainArguments -> IO ()
 vabalMain args = do
-    vabalCtx <- makeVabalContext args
-    version <- vabalFindGhcVersion args vabalCtx
-    ghcLocation <- requireGHC (availableGhcs vabalCtx) version (noInstallFlag args)
-    writeMessage $ "Selected GHC version: " ++ prettyPrintVersion version
+    let backend = ghcupBackend
+
+    vabalCtx <- makeVabalContext backend args
+    envParams <- vabalMakeEnvParams args vabalCtx
+    options <- (setupEnv backend) envParams (availableGhcs vabalCtx) (noInstallFlag args)
+    writeMessage $ "Selected GHC version: " ++ prettyPrintVersion (envGhcVersion envParams)
 
     -- Output generation
-    writeOutput $ generateCabalOptions args ghcLocation
+    -- Ensure that the option list is non-empty
+    case options of
+        [] -> throwVabalErrorIO "Internal error, the GhcupBackend returned an empty list of options, this shouldn't be possible. Report this bug."
+        _  -> writeOutput $ generateCabalOptions args options
 
 
-generateCabalOptions :: VabalMainArguments -> FilePath -> String
-generateCabalOptions args ghcLocation =
+generateCabalOptions :: VabalMainArguments -> [CabalOption] -> String
+generateCabalOptions args options =
     let flagsOutput = unwords
-              . map showFlagValue $ unFlagAssignment (configFlags args)
+                    . map showFlagValue $ unFlagAssignment (configFlags args)
 
-        outputGhcLocationArg = "-w\n" ++ escapeForXArgs ghcLocation
+        outputOptions = intercalate "\n" (map escapeForXArgs options)
         outputFlagsArg = if null flagsOutput then
                             ""
                          else
@@ -135,5 +144,5 @@ generateCabalOptions args ghcLocation =
                              Nothing -> ""
                              Just cabalFilePath -> "\n--cabal-file\n" ++ escapeForXArgs cabalFilePath
 
-    in outputGhcLocationArg ++ outputFlagsArg ++ outputCabalFile
+    in outputOptions ++ outputFlagsArg ++ outputCabalFile
 

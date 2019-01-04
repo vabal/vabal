@@ -83,5 +83,11 @@ alwaysNewestSwitch :: Parser Bool
 alwaysNewestSwitch = switch
                      ( long "always-newest"
                      <> help "Always choose newest GHC possible, don't prefer \
-                             \ already installed GHCs"
+                             \ already installed GHCs."
                      )
+
+useNixSwitch :: Parser Bool
+useNixSwitch = switch
+             ( long "nix"
+             <> help "Use the Nix backend."
+             )

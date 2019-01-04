@@ -54,9 +54,11 @@ library
 
 executable vabal
   main-is:             Main.hs
-  other-modules:       GhcupProgram, UserInterface, VabalMain,
+  other-modules:       GhcupBackend, UserInterface, VabalMain,
+                       Backend, Utils,
                        VabalArguments, VabalUpdate, VabalConfigure,
-                       VabalShow, ArgumentParsers, Paths_vabal
+                       VabalShow, ArgumentParsers, VabalNix,
+                       NixBackend, Paths_vabal
 
   autogen-modules:     Paths_vabal
 

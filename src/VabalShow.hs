@@ -6,7 +6,10 @@ import VabalMain
 
 import UserInterface
 import VabalContext
-import GhcupProgram
+import Backend
+import GhcupBackend
+
+import Utils
 
 showArgumentsParser :: Parser VabalMainArguments
 showArgumentsParser = mainArgumentsParser
@@ -22,7 +25,8 @@ showProgDesc = "Finds a version of GHC that is compatible with \
                \ directly configure your project to use the found GHC compiler."
 vabalShow :: VabalMainArguments -> IO ()
 vabalShow args = do
-    vabalCtx <- makeVabalContext args
-    version <- vabalFindGhcVersion args vabalCtx
-    _ <- requireGHC (availableGhcs vabalCtx) version (noInstallFlag args)
-    writeOutput $ prettyPrintVersion version
+    let backend = ghcupBackend
+    vabalCtx <- makeVabalContext backend args
+    envParams <- vabalMakeEnvParams args vabalCtx
+    _ <- (setupEnv backend) envParams (availableGhcs vabalCtx) (noInstallFlag args)
+    writeOutput $ prettyPrintVersion (envGhcVersion envParams)

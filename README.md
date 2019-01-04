@@ -135,6 +135,18 @@ but instead of printing to stdout the options to pass to cabal, it just prints t
 > Consult your system's manpage for `xargs` for further info.
 
 
+ Nix support
+-------------
+
+`vabal` has a subcommand to work with `nix`.
+
+`vabal nix` determines a suitable `ghc` version as usual, but then calls
+`cabal2nix` to produce a `shell.nix` file for the cabal package. The default `ghc` compiler
+requested in `shell.nix` will be set to the version determined before.
+All this happens inside a `nix-shell` so you only need to have `nix` installed,
+and it will take care of getting `cabal2nix` when necessary.
+
+
  Gotchas
 ----------
 
