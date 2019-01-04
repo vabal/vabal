@@ -20,13 +20,17 @@ import VabalShow
 
 import UserInterface
 
+import qualified Paths_vabal as P(version)
+
+import Data.Version (showVersion)
+
 data Command = Update
              | Main VabalMainArguments
              | Configure [String] [String]
              | Show VabalMainArguments
 
 vabalVersion :: String
-vabalVersion = "2.0.0"
+vabalVersion = showVersion P.version
 
 vabalHeader :: String
 vabalHeader = "vabal - The Cabal Companion, version " ++ vabalVersion

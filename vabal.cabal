@@ -10,7 +10,8 @@ author:              Francesco Magliocca
 maintainer:          franciman12@gmail.com
 category:            Development, Distribution
 build-type:          Simple
-extra-source-files:  CHANGELOG.md, README.md, tests/testCabalFiles/cairo.cabal,
+extra-source-files:  CHANGELOG.md, README.md
+data-files:          tests/testCabalFiles/cairo.cabal,
                      tests/testCabalFiles/lens.cabal, tests/testCabalFiles/sdl2.cabal
 homepage:            https://github.com/Franciman/vabal
 cabal-version:       >=1.10
@@ -55,7 +56,9 @@ executable vabal
   main-is:             Main.hs
   other-modules:       GhcupProgram, UserInterface, VabalMain,
                        VabalArguments, VabalUpdate, VabalConfigure,
-                       VabalShow, ArgumentParsers
+                       VabalShow, ArgumentParsers, Paths_vabal
+
+  autogen-modules:     Paths_vabal
 
   build-depends:       base                 >= 4.11 && < 4.13,
                        -- ^ GHC             >= 8.4.1 && <= 8.6.2
@@ -76,6 +79,9 @@ executable vabal
 test-suite test-cabal-analyzer
   type:                exitcode-stdio-1.0
   main-is:             TestCabalAnalyzer.hs
+  other-modules:       Paths_vabal
+
+  autogen-modules:     Paths_vabal
 
   build-depends:       base,
                        bytestring,
