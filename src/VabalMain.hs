@@ -131,8 +131,8 @@ vabalMain :: VabalMainArguments -> IO ()
 vabalMain args = do
     vabalCtx <- makeVabalContext
     version <- vabalFindGhcVersion args vabalCtx
-    ghcLocation <- requireGHC (availableGhcs vabalCtx) version (noInstallFlag args)
     writeMessage $ "Selected GHC version: " ++ prettyPrintVersion version
+    ghcLocation <- requireGHC (availableGhcs vabalCtx) version (noInstallFlag args)
 
     -- Output generation
     writeOutput $ generateCabalOptions args ghcLocation

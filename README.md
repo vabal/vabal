@@ -45,7 +45,7 @@ Or you can install it from sources, by running:
 > 
 > $ cd vabal
 > 
-> $ cabal v2-install exe:vabal
+> $ cabal v2-install vabal
 
 (Or `cabal new-install`, depending on the version of your `cabal`)
 

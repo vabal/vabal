@@ -93,7 +93,7 @@ requireGHC installedGhcs ghcVer noInstall = do
         let ghcAlreadyInstalled = ghcVer `S.member` installedGhcs
         unless ghcAlreadyInstalled $
             if noInstall then
-                throwVabalErrorIO "Required GHC version is not available on the system."
+                throwVabalErrorIO $ "The required GHC version (" ++ version ++ ") is not available on the system."
             else do
                 res <- runExternalProcess "ghcup" ["install", version]
                 case res of

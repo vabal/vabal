@@ -31,7 +31,7 @@ baseVersionOption = BaseVersion
                        ( long "with-base-version"
                        <> short 'b'
                        <> metavar "VER"
-                       <> help "Specify the version of base package you want to use. \
+                       <> help "Specify the version of base package you want to use (it must be specified fully, i.e. 4.11.0.0). \
                                 \ It is going to be checked against base constraints in \
                                 \ the cabal file for validity. \
                                 \ (Incompatible with option --with-ghc-version)"
