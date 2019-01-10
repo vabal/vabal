@@ -1,7 +1,8 @@
 # Revision history for vabal
 
-## 2.0.0 -- 2019-01-01
+## 2.0.0 -- 2019-01-10
 
+* The library has been separated in a different package, so that it can be reused
 * Add the vabal show command.
 * Now vabal prints the path to ghc even when using the ghc in PATH,
   so that xargs won't be confused by empty input even when vabal hasn't failed.

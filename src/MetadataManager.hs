@@ -1,4 +1,4 @@
-module GhcMetadata where
+module MetadataManager where
 
 import Network.HTTP.Client as N
 import Network.HTTP.Types.Status as N
@@ -12,9 +12,6 @@ import System.Directory
 import System.FilePath
 
 import GhcDatabase
-
-metadataUrl :: String
-metadataUrl = "https://raw.githubusercontent.com/Franciman/vabal-ghc-metadata/master/vabal-ghc-metadata.csv"
 
 getGhcMetadataDir :: IO FilePath
 getGhcMetadataDir = do
@@ -40,7 +37,7 @@ readGhcDatabase filepath = do
 downloadGhcDatabase :: FilePath -> IO ()
 downloadGhcDatabase filepath = do
     manager <- N.newTlsManager
-    request <- N.parseRequest metadataUrl
+    request <- N.parseRequest defaultGhcDatabaseURL
     response <- N.httpLbs request manager
 
     if N.responseStatus response /= N.status200 then

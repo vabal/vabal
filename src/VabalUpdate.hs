@@ -1,6 +1,6 @@
 module VabalUpdate where
 
-import GhcMetadata
+import MetadataManager
 import System.Directory
 import System.FilePath
 import UserInterface

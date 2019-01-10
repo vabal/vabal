@@ -19,10 +19,10 @@ import System.IO (stderr)
 
 import VabalError
 
-import GhcDatabase
-
 import System.Process
 import System.Exit
+
+import qualified Data.Set as S
 
 runExternalProcess :: FilePath -> [String] -> IO ExitCode
 runExternalProcess bin args = do
@@ -82,7 +82,7 @@ checkGhcInPath version = do
 -- Asks ghcup to get the provided version for ghc,
 -- It'll return the file path of the downloaded ghc.
 -- If an error occurs a VabalError is thrown.
-requireGHC :: GhcDatabase -> Version -> Bool -> IO FilePath
+requireGHC :: S.Set Version -> Version -> Bool -> IO FilePath
 requireGHC installedGhcs ghcVer noInstall = do
     let version = prettyPrintVersion ghcVer
     ghcInPathIsGood <- checkGhcInPath version
@@ -90,7 +90,7 @@ requireGHC installedGhcs ghcVer noInstall = do
     if ghcInPathIsGood then do
         removeTrailingNewlines <$> readCreateProcess (shell "command -v ghc") ""
     else do
-        let ghcAlreadyInstalled = hasGhcVersion installedGhcs ghcVer
+        let ghcAlreadyInstalled = ghcVer `S.member` installedGhcs
         unless ghcAlreadyInstalled $
             if noInstall then
                 throwVabalErrorIO "Required GHC version is not available on the system."

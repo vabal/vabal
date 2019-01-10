@@ -22,7 +22,7 @@ showProgDesc = "Finds a version of GHC that is compatible with \
                \ directly configure your project to use the found GHC compiler."
 vabalShow :: VabalMainArguments -> IO ()
 vabalShow args = do
-    vabalCtx <- makeVabalContext args
+    vabalCtx <- makeVabalContext
     version <- vabalFindGhcVersion args vabalCtx
     _ <- requireGHC (availableGhcs vabalCtx) version (noInstallFlag args)
     writeOutput $ prettyPrintVersion version
