@@ -57,11 +57,6 @@ furthermore, these programs are required to be in `PATH`:
 - ghcup,
 - cabal >= 2.4.0.0
 
-`cabal >= 2.4.0.0` is a requirement of `vabal configure`.
-
-`vabal` by itself can be used in combination with older `cabal`, too.
-See the *How to use vabal: full story* paragraph for details.
-
 
  Quick start
 --------------

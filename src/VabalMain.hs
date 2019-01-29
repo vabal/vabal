@@ -13,6 +13,8 @@ import Options.Applicative
 
 import System.Directory
 import System.FilePath
+import System.Process
+import System.Exit (ExitCode(ExitSuccess))
 
 import VabalError
 
@@ -27,6 +29,7 @@ import Distribution.Version
 
 import Control.Monad (unless)
 import Data.Maybe (fromMaybe)
+import Data.List (groupBy)
 
 import qualified Data.Set as S
 
@@ -36,6 +39,7 @@ data VabalMainArguments = VabalMainArguments
                , cabalFile            :: Maybe FilePath
                , noInstallFlag        :: Bool
                , alwaysNewestFlag     :: Bool
+               , accurancyLevel       :: AccurancyLevel
                }
                deriving(Show)
 
@@ -46,6 +50,7 @@ mainArgumentsParser = VabalMainArguments
                    <*> cabalFileOption
                    <*> noInstallSwitch
                    <*> alwaysNewestSwitch
+                   <*> accurancySwitches
 
 findCabalFile :: IO FilePath
 findCabalFile = do
@@ -98,12 +103,82 @@ runSolver args flags ctx pkgDescr =
     where compatibleVersions = analyzePackage flags (ghcDatabase ctx) pkgDescr
           newestCompatibleVersion = S.findMax compatibleVersions
 
+
+
+
+-- Check whether the provided ghc version works for configuring the package
+validateConfiguration :: Version -> FilePath -> FlagAssignment -> IO Bool
+validateConfiguration ver cabalFilePath flags = do
+    homeDir <- getHomeDirectory
+    let ghcLocation = homeDir </> ".vabal" </> "fake-ghc" </> prettyPrintVersion ver </> "ghc"
+    let flagsOutput = unwords . map showFlagValue $ unFlagAssignment flags
+    let cabalProcess = (proc "cabal" [ "v2-build", "--dry-run"
+                                     , "--flags", flagsOutput
+                                     , "--cabal-file", cabalFilePath
+                                     , "--with-compiler", ghcLocation
+                                     , "-vnormal+nowrap"
+                                     ]) { std_out = CreatePipe, std_err = CreatePipe }
+
+    (_, _, _, cabalProcHandle) <- createProcess cabalProcess
+    exitCode <- waitForProcess cabalProcHandle
+
+    return $ exitCode == ExitSuccess
+
+
+runDeepSolver :: Bool
+              -> FilePath
+              -> VabalMainArguments
+              -> FlagAssignment
+              -> VabalContext
+              -> GenericPackageDescription
+              -> IO Version
+
+runDeepSolver superAccurate cabalFilePath args flags ctx pkgDescr = do
+        if S.null compatibleVersions then
+            throwVabalErrorIO "Could not solve constraints."
+        else do
+            let versions = if alwaysNewestFlag args then
+                               S.toDescList compatibleVersions
+                           else S.toDescList availableCompatibleVersions
+                                ++ S.toDescList unavailableCompatibleVersions
+
+            -- milestone versions
+            let milestonedVersions = map head
+                                   $ groupBy (\v1 v2 -> metadataForGhc (ghcDatabase ctx) v1 == metadataForGhc (ghcDatabase ctx) v2) versions
+
+
+            v <- if superAccurate then -- Try all versions if we must be super accurate
+                     findFirstSuccessfulVersion versions
+                 else findFirstSuccessfulVersion milestonedVersions
+
+            case v of
+                Nothing -> throwVabalErrorIO "Could not find a ghc that solves the constraints."
+                Just res -> return res
+
+    where compatibleVersions = analyzePackage flags (ghcDatabase ctx) pkgDescr
+          availableCompatibleVersions = S.intersection (availableGhcs ctx) compatibleVersions
+          unavailableCompatibleVersions  = S.difference compatibleVersions (availableGhcs ctx)
+
+          findFirstSuccessfulVersion [] = return Nothing
+          findFirstSuccessfulVersion (v:vs) = do
+              putStrLn $ "Trying: ghc " ++ prettyPrintVersion v
+              res <- validateConfiguration v cabalFilePath flags
+              if res then
+                  return $ Just v
+              else findFirstSuccessfulVersion vs
+
+
 vabalFindGhcVersion :: VabalMainArguments -> VabalContext -> IO Version
 vabalFindGhcVersion args vabalCtx = do
     cabalFilePath <- maybe findCabalFile return (cabalFile args)
     pkgDescr <- readGenericPackageDescription normal cabalFilePath
 
     let flags = configFlags args
+
+    let solver a f c p = case accurancyLevel args of
+                             TryHard      -> runDeepSolver False cabalFilePath a f c p
+                             TrySuperHard -> runDeepSolver True cabalFilePath a f c p
+                             Normal       -> return $ runSolver a f c p
 
     case versionSpecification args of
         GhcVersion ghcVer -> do
@@ -119,23 +194,26 @@ vabalFindGhcVersion args vabalCtx = do
             -- Restrict the database to only those ghcs with the required baseVersion
             let db' = filterBaseVersionIn (ghcDatabase vabalCtx) (thisVersion baseVer)
             let ctx' = vabalCtx { ghcDatabase = db' }
-            return $ runSolver args flags ctx' pkgDescr
+            solver args flags ctx' pkgDescr
 
-        NoSpecification -> return $ runSolver args flags vabalCtx pkgDescr
-
-
-
+        NoSpecification -> solver args flags vabalCtx pkgDescr
 
 
 vabalMain :: VabalMainArguments -> IO ()
 vabalMain args = do
-    vabalCtx <- makeVabalContext
-    version <- vabalFindGhcVersion args vabalCtx
-    writeMessage $ "Selected GHC version: " ++ prettyPrintVersion version
-    ghcLocation <- requireGHC (availableGhcs vabalCtx) version (noInstallFlag args)
+    metadataFound <- hasGhcMetadata
 
-    -- Output generation
-    writeOutput $ generateCabalOptions args ghcLocation
+    if metadataFound then do
+        vabalCtx <- makeVabalContext
+        version <- vabalFindGhcVersion args vabalCtx
+        writeMessage $ "Selected GHC version: " ++ prettyPrintVersion version
+        ghcLocation <- requireGHC (availableGhcs vabalCtx) version (noInstallFlag args)
+
+        -- Output generation
+        writeOutput $ generateCabalOptions args ghcLocation
+
+    else
+        throwVabalErrorIO "Ghc metadata not found, run `vabal update` to download it."
 
 
 generateCabalOptions :: VabalMainArguments -> FilePath -> String

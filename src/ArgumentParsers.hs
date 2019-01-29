@@ -85,3 +85,31 @@ alwaysNewestSwitch = switch
                      <> help "Always choose newest GHC possible, don't prefer \
                              \ already installed GHCs"
                      )
+
+
+data AccurancyLevel = Normal | TryHard | TrySuperHard
+                    deriving(Show)
+
+tryHardSwitch :: Parser AccurancyLevel
+tryHardSwitch = switch
+                ( long "try-hard"
+                <> help "Try configuring the project with each compatible ghcs, until one succeds. \
+                         \ In this way the selected ghc will be guaranteed to be able to solve constraints. \
+                         \ Differently from '--try-super-hard', if there are multiple ghcs \
+                         \ supporting the same base and Cabal version, then only one of those is tried, \
+                         \ so, for example after ghc 8.6.3, ghc 8.6.2 is not tried, and we directly try ghc 8.4.4.\
+                         \ (Incompatible with --try-super-hard)"
+                )
+                *> pure TryHard
+
+trySuperHardSwitch :: Parser AccurancyLevel
+trySuperHardSwitch = switch
+                   ( long "try-super-hard"
+                   <> help "Try configuring the project with each compatible ghcs, until one succeds. \
+                         \ In this way the selected ghc will be guaranteed to be able to solve constraints. \
+                         \ (Incompatible with --try-hard)"
+                   )
+                   *> pure TrySuperHard
+
+accurancySwitches :: Parser AccurancyLevel
+accurancySwitches = tryHardSwitch <|> trySuperHardSwitch <|> pure Normal
