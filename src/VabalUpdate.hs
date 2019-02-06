@@ -2,7 +2,6 @@ module VabalUpdate where
 
 import MetadataManager
 import System.Directory
-import System.FilePath
 import UserInterface
 
 updateProgDesc :: String
@@ -12,6 +11,6 @@ vabalUpdate :: IO ()
 vabalUpdate = do
     dir <- getGhcMetadataDir
     createDirectoryIfMissing True dir
-    downloadGhcDatabase (dir </> ghcMetadataFilename)
+    downloadMetadata dir
     writeOutput "Vabal successfully updated."
 

@@ -57,11 +57,6 @@ furthermore, these programs are required to be in `PATH`:
 - ghcup,
 - cabal >= 2.4.0.0
 
-`cabal >= 2.4.0.0` is a requirement of `vabal configure`.
-
-`vabal` by itself can be used in combination with older `cabal`, too.
-See the *How to use vabal: full story* paragraph for details.
-
 
  Quick start
 --------------
@@ -154,30 +149,37 @@ but it is not guaranteed that the build will be successful. (Generally one shoul
                            Explicitly tell which version of ghc you want to use
                            for the project. (Incompatible with option
                            --with-base-version)
-                           
   -b,--with-base-version VER
-                           Specify the version of base package you want to use.
-                           It is going to be checked against base constraints in
-                           the cabal file for validity. (Incompatible with
-                           option --with-ghc-version)
-                           
+                           Specify the version of base package you want to use
+                           (it must be specified fully, i.e. 4.11.0.0). It is
+                           going to be checked against base constraints in the
+                           cabal file for validity. (Incompatible with option
+                           --with-ghc-version)
   --flags FLAGS            String containing a list of space separated flags to
                            be used to configure the project (You can enable or
                            disable a flag by adding a + or - in front of the
                            flag name. When none is specified, the flag is
-                           enabled). Flag assignment determined here is also
-                           emitted to stdout as a cabal option
-                           (or passed to "cabal v2-configure" in the case of
-                           "vabal configure")
-                           
+                           enabled). Flag assignment determined here is
+                           forwarded to cabal.
   --cabal-file FILE        Explicitly tell which cabal file to use. This option
-                           also emitted to stdout as cabal option (or passed to
-                           `cabal v2-configure` in the case of "vabal configure")
-  
+                           is forwarded to cabal.
   --no-install             If GHC needs to be downloaded, fail, instead.
-  
   --always-newest          Always choose newest GHC possible, don't prefer
                            already installed GHCs
+  --try-hard               Try configuring the project with each compatible
+                           ghcs, until one succeds. In this way the selected ghc
+                           will be guaranteed to be able to solve constraints.
+                           Differently from '--try-super-hard', if there are
+                           multiple ghcs supporting the same base and Cabal
+                           version, then only one of those is tried, so, for
+                           example after ghc 8.6.3, ghc 8.6.2 is not tried, and
+                           we directly try ghc 8.4.4. (Incompatible with
+                           --try-super-hard)
+  --try-super-hard         Try configuring the project with each compatible
+                           ghcs, until one succeds. In this way the selected ghc
+                           will be guaranteed to be able to solve constraints.
+                           (Incompatible with --try-hard)
+  -h,--help                Show help
 ```
 
 with `vabal configure` you can also pass arguments directly to cabal,

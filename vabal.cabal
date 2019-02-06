@@ -52,7 +52,8 @@ executable vabal
                        http-client          >=0.5.14 && <0.6,
                        http-types           >=0.12.2 && <0.13,
                        http-client-tls      >=0.3.5  && <0.4,
-                       vabal-lib            >=2.0.0  && <2.1.0
+                       vabal-lib            >=2.0.0  && <2.1.0,
+                       tar                  >=0.5.1  && <0.6
 
   hs-source-dirs:      src/
   ghc-options:         -Wall
