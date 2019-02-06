@@ -28,6 +28,9 @@ The only change to the global system state `vabal` does is to tell `ghcup` to do
 this behavior can be disabled with `--no-install` flag, so you are always in charge of what's happening!
 
 
+Join our IRC channel #vabal on [freenode](https://webchat.freenode.net/) for discussing and getting help from the community.
+
+
  Requirements
 --------------
 
