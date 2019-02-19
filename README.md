@@ -55,7 +55,7 @@ Or you can install it from sources, by running:
 Remember to put `$HOME/.cabal/bin` in your `PATH`.
 
 
-`vabal` needs to run on a `POSIX` compliant system, because it uses `xargs` and `command` utilities,
+`vabal` needs to run on a `POSIX` compliant system, because it uses the `command` utility,
 furthermore, these programs are required to be in `PATH`:
 - ghcup,
 - cabal >= 2.4.0.0
@@ -95,42 +95,30 @@ you can do it after a `--`, e.g.:
 How to use vabal: full story
 ----------------------------
 
-`vabal` tries to leverage the power of composability of shell commands,
-you can use it in combination with any `cabal` subcommand.
+`vabal` tries to be composable with `cabal`, you can use it in combination with any `cabal` subcommand.
 For example, if you don't want vabal to also perform the `cabal v2-configure` step,
 but would like to use it in combination with `cabal v2-build`, you can run (*):
-> $ vabal --flags="your -flags" | xargs -r cabal v2-build
-
-(If you are on `OS X`, you don't need to specify the -r option for xargs)
-
-xargs invokes cabal with the arguments and options specified *plus* options read from stdin.
-Read the *Remark* for info about the `-r` option.
+> $ vabal --flags="your -flags" -- cabal v2-build --other-cabal-options
+ 
+`vabal` invokes the command with the options and arguments specified, *plus* additional options provided by `vabal`,
+to make `cabal` the `ghc` compiler that `vabal` obtained.
 
 > In Haskell jargon, you can see this as partially applying the `cabal` "function" first,
-> and then providing it the remaining arguments that `vabal` emitted.
+> and then providing it the remaining arguments that `vabal` determines.
 
-What vabal actually does is analyze the cabal file, obtain a suitable `ghc`, using `ghcup`, and then print to stdout
-options to pass to cabal (already properly escaped to be used with xargs).
 It follows the Unix philosophy and its power comes from composition with other programs.
 
+You can specify any command after `--`, not just `cabal`.
+If you don't specify any command after `--`, then by default `echo` is executed, so it will print to stdout
+the options that `vabal` would have passed to `cabal`.
+
 In fact, `vabal configure` is just a shortcut for:
-> vabal | xargs -r cabal v2-configure
+> vabal -- cabal v2-configure
 
 In this mode you can compose `vabal` with other `cabal` commands too, also with old-style `cabal build`, `cabal configure`, etc..
 
 There is one last command available, it is `vabal show`, it does the same things `vabal` does,
-but instead of printing to stdout the options to pass to cabal, it just prints the version of the obtained `ghc`.
-
-(*) Remark: 
-> The `-r` flag you see is only available in the GNU version of `xargs`. It makes xargs fail if its input is empty,
-> i.e. when vabal fails. This is necessary or cabal will run as well without arguments from vabal.
-> If you use the BSD version of `xargs`, then this flag is not necessary (and is neither available),
-> because this is the default behavior.
-> Another possibility is to use the `-p` flag for `xargs` which is available on all `POSIX` systems,
-> it will show the command it is about to run and ask the user if he wants to proceed. In this way,
-> if vabal failed, he can stop the execution.
-> 
-> Consult your system's manpage for `xargs` for further info.
+but instead of executing the provided command, it just prints the version of the obtained `ghc` to stdout.
 
 
  Gotchas
@@ -139,7 +127,9 @@ but instead of printing to stdout the options to pass to cabal, it just prints t
 Here are some known gotchas that affect `vabal`:
 - `vabal` trusts the constraints imposed on `base` (and `Cabal` constraints found in the setup-depends section, if any)
 that it finds in the cabal file, therefore it only finds a ghc version that makes it possible to respect the constraints,
-but it is not guaranteed that the build will be successful. (Generally one should always write correct constraints)
+but it is not guaranteed that the build will be successful. (Generally one should always write correct constraints).
+
+If you want a deeper analysis that also considers other dependencies, use the `--try-hard` flag.
 
 
  Full list of options

@@ -25,7 +25,7 @@ import qualified Paths_vabal as P(version)
 import Data.Version (showVersion)
 
 data Command = Update
-             | Main VabalMainArguments
+             | Main [String] VabalMainArguments
              | Configure [String] [String]
              | Show VabalMainArguments
 
@@ -58,9 +58,9 @@ showParserInfo =
     <> header vabalHeader
     )
 
-mainParserInfo :: ParserInfo Command
-mainParserInfo =
-    info ((Main <$> mainArgumentsParser) <**> helper)
+mainParserInfo :: [String] -> ParserInfo Command
+mainParserInfo cmd =
+    info ((Main cmd <$> mainArgumentsParser) <**> helper)
          ( fullDesc
          <> header vabalHeader
          <> progDesc mainProgDesc
@@ -77,40 +77,45 @@ mainParserInfo =
                       )
          )
 
-updateExeName :: String -> ParserInfo a -> Bool -> ParserHelp -> ParserHelp
-updateExeName name pinfo addTrailingCabalArgs old =
+updateExeName :: String -> ParserInfo a -> Maybe String -> ParserHelp -> ParserHelp
+updateExeName name pinfo trailingArgs old =
     let p = infoParser pinfo
         desc = maybeToList . unChunk $ fmap (indent 2) (infoProgDesc pinfo)
-        usage = if addTrailingCabalArgs then
-                    (parserUsage defaultPrefs p name <> string " [-- CABALARGS...]") : desc
-                else
-                    parserUsage defaultPrefs p name : desc
+        usage = case trailingArgs of
+                  Just args ->
+                    (parserUsage defaultPrefs p name <> string args) : desc
+                  Nothing -> parserUsage defaultPrefs p name : desc
     in old { helpUsage = Chunk . Just $ vcat usage }
 
 parseArgs :: [String] -> IO Command
 parseArgs ("update" : args) =
     handleParseResult
-    . overFailure (updateExeName "vabal update" updateParserInfo False)
+    . overFailure (updateExeName "vabal update" updateParserInfo Nothing)
     $ execParserPure defaultPrefs updateParserInfo args
 
 parseArgs ("configure" : args) =
     let (vabalArgs, otherArgs) = break (== "--") args
-        cabalArgs = case otherArgs of
-                           [] -> []
-                           as -> tail as
+        cabalArgs = drop 1 otherArgs -- Ignore the '--'
 
         parserInfo = configureParserInfo cabalArgs vabalArgs
 
     in handleParseResult
-       . overFailure (updateExeName "vabal configure" parserInfo True)
+       . overFailure (updateExeName "vabal configure" parserInfo (Just " [-- CABALARGS...]"))
        $ execParserPure defaultPrefs parserInfo vabalArgs
 
 parseArgs ("show" : args) =
     handleParseResult
-    . overFailure (updateExeName "vabal show" showParserInfo False)
+    . overFailure (updateExeName "vabal show" showParserInfo Nothing)
     $ execParserPure defaultPrefs showParserInfo args
 
-parseArgs args = handleParseResult (execParserPure defaultPrefs mainParserInfo args)
+parseArgs args =
+    let (vabalArgs, otherArgs) = break (== "--") args
+        cmd = drop 1 otherArgs -- Ignore the '--'
+        parserInfo = mainParserInfo cmd
+
+    in handleParseResult
+    . overFailure (updateExeName "vabal" parserInfo (Just " [-- COMMAND ARGS...]"))
+    $ (execParserPure defaultPrefs parserInfo vabalArgs)
 
 
 main :: IO ()
@@ -125,7 +130,7 @@ main = do
     handle errorHandler $
         case cmd of
             Update -> vabalUpdate
-            Main args -> vabalMain args
+            Main c args -> vabalMain c args
             Configure cabalArgs args -> vabalConfigure cabalArgs args
             Show args -> vabalShow args
 
