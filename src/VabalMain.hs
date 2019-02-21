@@ -14,7 +14,7 @@ import Options.Applicative
 import System.Directory
 import System.FilePath
 import System.Process
-import System.Exit (ExitCode(ExitSuccess))
+import System.Exit (ExitCode(..))
 
 import VabalError
 
@@ -23,13 +23,11 @@ import GhcupProgram
 import PackageSolver
 import UserInterface
 
-import XArgsEscape
-
 import Distribution.Version
 
 import Control.Monad (unless)
 import Data.Maybe (fromMaybe)
-import Data.List (groupBy)
+import Data.List (groupBy, uncons)
 
 import qualified Data.Set as S
 
@@ -66,9 +64,9 @@ mainProgDesc = "Finds a version of GHC that is compatible with \
                \ the constraints imposed on base package found \
                \ in the cabal file analyzed, \
                \ then uses ghcup to obtain it (possibly downloading it). \
-               \ Finally it prints to stdout options you can feed \
-               \ to cabal to use the obtained GHC compiler \
-               \ (options are already escaped so that they can sent to xargs). \
+               \ Finally it executes the command specified after '--' \
+               \ feeding it the options to use the obtained GHC compiler. \
+               \ If no command is specified after '--', echo is used. \
                \ WARNING: Probably this is not what you want to use, \
                \ See \"vabal configure --help\" for info about how to \
                \ directly configure your project to use the found GHC compiler."
@@ -199,8 +197,8 @@ vabalFindGhcVersion args vabalCtx = do
         NoSpecification -> solver args flags vabalCtx pkgDescr
 
 
-vabalMain :: VabalMainArguments -> IO ()
-vabalMain args = do
+vabalMain :: [String] -> VabalMainArguments -> IO ()
+vabalMain cmd args = do
     metadataFound <- hasGhcMetadata
 
     if metadataFound then do
@@ -209,30 +207,40 @@ vabalMain args = do
         writeMessage $ "Selected GHC version: " ++ prettyPrintVersion version
         ghcLocation <- requireGHC (availableGhcs vabalCtx) version (noInstallFlag args)
 
-        -- Output generation
-        writeOutput $ generateCabalOptions args ghcLocation
+        -- Generate options determined by vabal
+        let extraOptions = generateCabalOptions args ghcLocation
+
+        -- If no command was specified, use echo
+        let (commandName, commandArgs) = fromMaybe ("echo", []) $ uncons cmd
+
+
+        let procDesc = (proc commandName (commandArgs ++ extraOptions))
+        (_, _, _, procHandle) <- createProcess procDesc
+        exitCode <- waitForProcess procHandle
+        case exitCode of
+            ExitFailure _ -> throwVabalErrorIO "Error while running specified command."
+            ExitSuccess   -> return ()
 
     else
         throwVabalErrorIO "Ghc metadata not found, run `vabal update` to download it."
 
 
-generateCabalOptions :: VabalMainArguments -> FilePath -> String
+generateCabalOptions :: VabalMainArguments -> FilePath -> [String]
 generateCabalOptions args ghcLocation =
     let flagsOutput = unwords
               . map showFlagValue $ unFlagAssignment (configFlags args)
 
-        outputGhcLocationArg = "-w\n" ++ escapeForXArgs ghcLocation
+        outputGhcLocationArg = ["-w", ghcLocation]
         outputFlagsArg = if null flagsOutput then
-                            ""
+                            []
                          else
                            -- we don't escape flags because we are sure no invalid
                            -- sequence is in them, since otherwise they weren't
                            -- parsed when passed as arguments
-                           "\n--flags\n'" ++ flagsOutput ++ "'"
+                           ["--flags", "'" ++ flagsOutput ++ "'"]
 
         outputCabalFile = case cabalFile args of
-                             Nothing -> ""
-                             Just cabalFilePath -> "\n--cabal-file\n" ++ escapeForXArgs cabalFilePath
+                             Nothing -> []
+                             Just cabalFilePath -> ["--cabal-file", cabalFilePath]
 
     in outputGhcLocationArg ++ outputFlagsArg ++ outputCabalFile
-

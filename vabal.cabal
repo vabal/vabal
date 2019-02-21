@@ -33,9 +33,8 @@ executable vabal
   main-is:             Main.hs
   other-modules:       GhcupProgram, UserInterface, VabalMain,
                        VabalArguments, VabalUpdate, VabalConfigure,
-                       VabalShow, ArgumentParsers, XArgsEscape,
-                       VabalError, MetadataManager, VabalContext,
-                       Paths_vabal
+                       VabalShow, ArgumentParsers, VabalError,
+                       MetadataManager, VabalContext, Paths_vabal
 
   autogen-modules:     Paths_vabal
 
@@ -56,18 +55,6 @@ executable vabal
                        tar                  >=0.5.1  && <0.6
 
   hs-source-dirs:      src/
-  ghc-options:         -Wall
-  default-language:    Haskell2010
-
-test-suite xargs-escape-test
-  type:                exitcode-stdio-1.0
-  main-is:             TestXArgsEscapes.hs
-  other-modules:       XArgsEscape
-
-  build-depends:       base,
-                       process
-
-  hs-source-dirs:      tests/ src/
   ghc-options:         -Wall
   default-language:    Haskell2010
 
