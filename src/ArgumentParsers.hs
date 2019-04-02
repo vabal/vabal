@@ -1,6 +1,5 @@
 module ArgumentParsers where
 
-import Data.Functor (($>))
 import Options.Applicative
 import Distribution.Version
 import Distribution.Types.GenericPackageDescription
@@ -92,7 +91,7 @@ data AccurancyLevel = Normal | TryHard | TrySuperHard
                     deriving(Show)
 
 tryHardSwitch :: Parser AccurancyLevel
-tryHardSwitch = switch
+tryHardSwitch = flag' TryHard
                 ( long "try-hard"
                 <> help "Try configuring the project with each compatible ghcs, until one succeds. \
                          \ In this way the selected ghc will be guaranteed to be able to solve constraints. \
@@ -101,16 +100,14 @@ tryHardSwitch = switch
                          \ so, for example after ghc 8.6.3, ghc 8.6.2 is not tried, and we directly try ghc 8.4.4.\
                          \ (Incompatible with --try-super-hard)"
                 )
-                $> TryHard
 
 trySuperHardSwitch :: Parser AccurancyLevel
-trySuperHardSwitch = switch
+trySuperHardSwitch = flag' TrySuperHard
                    ( long "try-super-hard"
                    <> help "Try configuring the project with each compatible ghcs, until one succeds. \
                          \ In this way the selected ghc will be guaranteed to be able to solve constraints. \
                          \ (Incompatible with --try-hard)"
                    )
-                   $> TrySuperHard
 
 accurancySwitches :: Parser AccurancyLevel
 accurancySwitches = tryHardSwitch <|> trySuperHardSwitch <|> pure Normal
