@@ -87,7 +87,7 @@ requireGHC installedGhcs ghcVer noInstall = do
     let version = prettyPrintVersion ghcVer
     ghcInPathIsGood <- checkGhcInPath version
 
-    if ghcInPathIsGood then do
+    if ghcInPathIsGood then
         removeTrailingNewlines <$> readCreateProcess (shell "command -v ghc") ""
     else do
         let ghcAlreadyInstalled = ghcVer `S.member` installedGhcs

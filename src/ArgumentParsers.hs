@@ -1,5 +1,6 @@
 module ArgumentParsers where
 
+import Data.Functor (($>))
 import Options.Applicative
 import Distribution.Version
 import Distribution.Types.GenericPackageDescription
@@ -100,7 +101,7 @@ tryHardSwitch = switch
                          \ so, for example after ghc 8.6.3, ghc 8.6.2 is not tried, and we directly try ghc 8.4.4.\
                          \ (Incompatible with --try-super-hard)"
                 )
-                *> pure TryHard
+                $> TryHard
 
 trySuperHardSwitch :: Parser AccurancyLevel
 trySuperHardSwitch = switch
@@ -109,7 +110,7 @@ trySuperHardSwitch = switch
                          \ In this way the selected ghc will be guaranteed to be able to solve constraints. \
                          \ (Incompatible with --try-hard)"
                    )
-                   *> pure TrySuperHard
+                   $> TrySuperHard
 
 accurancySwitches :: Parser AccurancyLevel
 accurancySwitches = tryHardSwitch <|> trySuperHardSwitch <|> pure Normal

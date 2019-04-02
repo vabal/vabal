@@ -89,12 +89,10 @@ runSolver :: VabalMainArguments
           -> VabalContext
           -> [GenericPackageDescription]
           -> Version
-runSolver args flags ctx pkgDescrs =
-        if S.null compatibleVersions then
-            throwVabalError "Could not solve constraints."
-        else if alwaysNewestFlag args then
-                 newestCompatibleVersion
-        else
+runSolver args flags ctx pkgDescrs
+    | S.null compatibleVersions = throwVabalError "Could not solve constraints."
+    | alwaysNewestFlag args     = newestCompatibleVersion
+    | otherwise =
             let availableCompatibleVersions = S.intersection
                                               (availableGhcs ctx)
                                               compatibleVersions
@@ -117,17 +115,17 @@ validateConfiguration ver cabalFilePath flags = do
     homeDir <- getHomeDirectory
     let ghcLocation = homeDir </> ".vabal" </> "fake-ghc" </> prettyPrintVersion ver </> "ghc"
     let flagsOutput = unwords . map showFlagValue $ unFlagAssignment flags
-    let cabalFileOpt = case cabalFilePath of
-                          Nothing -> []
+    let packageTarget = case cabalFilePath of
+                          Nothing -> ["all"] -- We want to consider all the packages
                           Just path -> ["--cabal-file", path]
 
     let cabalProcess = (proc "cabal" ([ "v2-build", "--dry-run"
                                       , "--flags", flagsOutput
-                                      ]
-                                      ++ cabalFileOpt ++
-                                      [ "--with-compiler", ghcLocation
+                                      , "--with-compiler", ghcLocation
                                       , "-vnormal+nowrap"
-                                      ])) { std_out = CreatePipe, std_err = CreatePipe }
+                                      ]
+                                      ++ packageTarget
+                                      )) { std_out = CreatePipe, std_err = CreatePipe }
 
     (_, _, _, cabalProcHandle) <- createProcess cabalProcess
     exitCode <- waitForProcess cabalProcHandle
@@ -143,10 +141,9 @@ runDeepSolver :: Bool
               -> [GenericPackageDescription]
               -> IO Version
 
-runDeepSolver superAccurate cabalFiles args flags ctx pkgDescrs = do
-        if S.null compatibleVersions then
-            throwVabalErrorIO "Could not solve constraints."
-        else do
+runDeepSolver superAccurate cabalFiles args flags ctx pkgDescrs
+    | S.null compatibleVersions = throwVabalErrorIO "Could not solve constraints."
+    | otherwise = do
             let versions = if alwaysNewestFlag args then
                                S.toDescList compatibleVersions
                            else S.toDescList availableCompatibleVersions
@@ -235,7 +232,7 @@ vabalMain cmd args = do
         let (commandName, commandArgs) = fromMaybe ("echo", []) $ uncons cmd
 
 
-        let procDesc = (proc commandName (commandArgs ++ extraOptions))
+        let procDesc = proc commandName (commandArgs ++ extraOptions)
         (_, _, _, procHandle) <- createProcess procDesc
         exitCode <- waitForProcess procHandle
         case exitCode of

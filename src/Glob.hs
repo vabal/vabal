@@ -22,8 +22,9 @@ import Distribution.Compat.CharParsing
 import Control.Applicative
 
 import           Data.List (stripPrefix)
-import           Data.Char (toUpper)
+import           Data.Char (toUpper, isAsciiLower, isAsciiUpper)
 import           Control.Monad (filterM, when)
+import           Data.Functor (($>))
 
 import qualified Text.PrettyPrint as Disp
 
@@ -179,12 +180,12 @@ dispFilePathGlob (FilePathGlob root pathglob) = dispFilePathRoot root Disp.<> di
 
 
 instance Parsec FilePathRoot where
-    parsec = (char '/' *> return (FilePathRoot "/"))
-             <|> (char '~' *> char '/' *> return FilePathHomeDir)
+    parsec = (char '/' $> FilePathRoot "/")
+             <|> (char '~' *> char '/' $> FilePathHomeDir)
              <|> parseDrive
              <|> return FilePathRelative
 
-        where isAsciiAlpha c = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+        where isAsciiAlpha c = isAsciiLower c || isAsciiUpper c
               parseDrive = do
                   drive <- satisfy isAsciiAlpha
                   _ <- char ':'
@@ -204,15 +205,13 @@ instance Parsec FilePathGlobRel where
                 try (asDir globpieces) <|> asTDir globpieces <|> asFile globpieces
 
               asDir glob = do dirSep
-                              globs <- parsePath
-                              return (GlobDir glob globs)
+                              GlobDir glob <$> parsePath
 
-              asTDir glob = do dirSep
-                               return (GlobDir glob GlobDirTrailing)
+              asTDir glob = dirSep $> GlobDir glob GlobDirTrailing
 
               asFile glob = return (GlobFile glob)
 
-              dirSep      = (char '/' *> return ()) <|> notEscapingBackslash
+              dirSep      = (char '/' $> ()) <|> notEscapingBackslash
 
               notEscapingBackslash = do
                   _ <- char '\\' *> notFollowedBy (satisfy isGlobEscapedChar)
@@ -246,7 +245,7 @@ parseGlob = some parsePiece
   where
     parsePiece = literal <|> wildcard <|> union
 
-    wildcard = char '*' *> pure WildCard
+    wildcard = char '*' $> WildCard
 
     union = between (char '{') (char '}') $
               fmap Union (sepBy1 parseGlob (char ','))

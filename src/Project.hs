@@ -56,7 +56,7 @@ instance Pretty PackageLocation where
     pretty (PackageLocation p) = PP.text p
 
 
-data Project = Project
+newtype Project = Project
              { packages :: [String]
              }
              deriving(Show)

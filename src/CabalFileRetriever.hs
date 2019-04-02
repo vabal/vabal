@@ -13,17 +13,19 @@ import Control.Monad (filterM)
 import qualified Data.ByteString as B
 
 findCabalFileIn :: FilePath -> IO FilePath
-findCabalFileIn path = withCurrentDirectory path $ do
+findCabalFileIn path = do
     let Right glob = parseFilePathGlobRel "*.cabal"
-    res <- matchFileGlobRel path glob
-    files <- filterM doesFileExist res -- Ignore directories
+    path' <- canonicalizePath path
+    res <- matchFileGlobRel path' glob
+    files <- filterM doesFileExist $ map (path' </>) res -- Ignore directories
     case files of
         [] -> throwVabalErrorIO $ "No cabal file found in " ++ path
         (c:_) -> return c -- Only take the first cabal file, is it the correct behavior?
 
 findLocations :: FilePath -> FilePathGlob -> IO [FilePath]
 findLocations currDir glob = do
-        paths <- matchFileGlob currDir glob
+        currDir' <- canonicalizePath currDir
+        paths <- matchFileGlob currDir' glob
         mapM analyzePath paths
 
     where analyzePath :: FilePath -> IO FilePath
@@ -42,8 +44,8 @@ findCabalFiles proj = do
     currDir <- getCurrentDirectory
     if all isRight locations then
         concat <$> mapM (findLocations currDir) (rights locations)
-    else do
-        throwVabalErrorIO $ "Error while parsing glob file path in cabal.project."
+    else
+        throwVabalErrorIO "Error while parsing glob file path in cabal.project."
 
 findCabalFile :: IO FilePath
 findCabalFile = do

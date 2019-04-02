@@ -115,7 +115,7 @@ parseArgs args =
 
     in handleParseResult
     . overFailure (updateExeName "vabal" parserInfo (Just " [-- COMMAND ARGS...]"))
-    $ (execParserPure defaultPrefs parserInfo vabalArgs)
+    $ execParserPure defaultPrefs parserInfo vabalArgs
 
 
 main :: IO ()
