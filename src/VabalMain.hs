@@ -18,6 +18,8 @@ import System.Exit (ExitCode(..))
 
 import VabalError
 
+import CabalFileRetriever
+
 import GhcupProgram
 
 import PackageSolver
@@ -50,15 +52,6 @@ mainArgumentsParser = VabalMainArguments
                    <*> alwaysNewestSwitch
                    <*> accurancySwitches
 
-findCabalFile :: IO FilePath
-findCabalFile = do
-    currDir <- getCurrentDirectory
-    childs <- listDirectory currDir
-    let cabalFiles = filter (\c -> takeExtension c == ".cabal") childs
-    case cabalFiles of
-        [] -> throwVabalErrorIO "No cabal file found."
-        (cf:_) -> return cf
-
 mainProgDesc :: String
 mainProgDesc = "Finds a version of GHC that is compatible with \
                \ the constraints imposed on base package found \
@@ -80,17 +73,26 @@ makeVabalContext = do
 
     return $ VabalContext installedGhcs ghcDb
 
+-- Intersect all compatible versions for all packages,
+-- we want all of them to be compilable
+compatibleVersionsFor :: FlagAssignment
+                      -> VabalContext
+                      -> [GenericPackageDescription]
+                      -> S.Set Version
+compatibleVersionsFor flags ctx pkgDescrs =
+    case map (analyzePackage flags (ghcDatabase ctx)) pkgDescrs of
+        [] -> mempty
+        (x:xs) -> foldr S.intersection x xs
+
 runSolver :: VabalMainArguments
           -> FlagAssignment
           -> VabalContext
-          -> GenericPackageDescription
+          -> [GenericPackageDescription]
           -> Version
-runSolver args flags ctx pkgDescr =
-        if S.null compatibleVersions then
-            throwVabalError "Could not solve constraints."
-        else if alwaysNewestFlag args then
-                 newestCompatibleVersion
-        else
+runSolver args flags ctx pkgDescrs
+    | S.null compatibleVersions = throwVabalError "Could not solve constraints."
+    | alwaysNewestFlag args     = newestCompatibleVersion
+    | otherwise =
             let availableCompatibleVersions = S.intersection
                                               (availableGhcs ctx)
                                               compatibleVersions
@@ -98,24 +100,32 @@ runSolver args flags ctx pkgDescr =
             in fromMaybe newestCompatibleVersion
              $ S.lookupMax availableCompatibleVersions
 
-    where compatibleVersions = analyzePackage flags (ghcDatabase ctx) pkgDescr
+    where compatibleVersions = compatibleVersionsFor flags ctx pkgDescrs
           newestCompatibleVersion = S.findMax compatibleVersions
 
 
 
 
 -- Check whether the provided ghc version works for configuring the package
-validateConfiguration :: Version -> FilePath -> FlagAssignment -> IO Bool
+validateConfiguration :: Version
+                      -> Maybe FilePath
+                      -> FlagAssignment
+                      -> IO Bool
 validateConfiguration ver cabalFilePath flags = do
     homeDir <- getHomeDirectory
     let ghcLocation = homeDir </> ".vabal" </> "fake-ghc" </> prettyPrintVersion ver </> "ghc"
     let flagsOutput = unwords . map showFlagValue $ unFlagAssignment flags
-    let cabalProcess = (proc "cabal" [ "v2-build", "--dry-run"
-                                     , "--flags", flagsOutput
-                                     , "--cabal-file", cabalFilePath
-                                     , "--with-compiler", ghcLocation
-                                     , "-vnormal+nowrap"
-                                     ]) { std_out = CreatePipe, std_err = CreatePipe }
+    let packageTarget = case cabalFilePath of
+                          Nothing -> ["all"] -- We want to consider all the packages
+                          Just path -> ["--cabal-file", path]
+
+    let cabalProcess = (proc "cabal" ([ "v2-build", "--dry-run"
+                                      , "--flags", flagsOutput
+                                      , "--with-compiler", ghcLocation
+                                      , "-vnormal+nowrap"
+                                      ]
+                                      ++ packageTarget
+                                      )) { std_out = CreatePipe, std_err = CreatePipe }
 
     (_, _, _, cabalProcHandle) <- createProcess cabalProcess
     exitCode <- waitForProcess cabalProcHandle
@@ -124,17 +134,16 @@ validateConfiguration ver cabalFilePath flags = do
 
 
 runDeepSolver :: Bool
-              -> FilePath
+              -> PackageSpec
               -> VabalMainArguments
               -> FlagAssignment
               -> VabalContext
-              -> GenericPackageDescription
+              -> [GenericPackageDescription]
               -> IO Version
 
-runDeepSolver superAccurate cabalFilePath args flags ctx pkgDescr = do
-        if S.null compatibleVersions then
-            throwVabalErrorIO "Could not solve constraints."
-        else do
+runDeepSolver superAccurate cabalFiles args flags ctx pkgDescrs
+    | S.null compatibleVersions = throwVabalErrorIO "Could not solve constraints."
+    | otherwise = do
             let versions = if alwaysNewestFlag args then
                                S.toDescList compatibleVersions
                            else S.toDescList availableCompatibleVersions
@@ -153,7 +162,12 @@ runDeepSolver superAccurate cabalFilePath args flags ctx pkgDescr = do
                 Nothing -> throwVabalErrorIO "Could not find a ghc that solves the constraints."
                 Just res -> return res
 
-    where compatibleVersions = analyzePackage flags (ghcDatabase ctx) pkgDescr
+    where -- When not using a project we want to tell cabal which is the cabal file to use
+          cabalFilePath = case cabalFiles of
+                             ProjectSpec _ -> Nothing
+                             CabalFile c   -> Just c
+
+          compatibleVersions = compatibleVersionsFor flags ctx pkgDescrs
           availableCompatibleVersions = S.intersection (availableGhcs ctx) compatibleVersions
           unavailableCompatibleVersions  = S.difference compatibleVersions (availableGhcs ctx)
 
@@ -168,22 +182,26 @@ runDeepSolver superAccurate cabalFilePath args flags ctx pkgDescr = do
 
 vabalFindGhcVersion :: VabalMainArguments -> VabalContext -> IO Version
 vabalFindGhcVersion args vabalCtx = do
-    cabalFilePath <- maybe findCabalFile return (cabalFile args)
-    pkgDescr <- readGenericPackageDescription normal cabalFilePath
+    cabalFiles <- case cabalFile args of
+                    Just cf -> return $ CabalFile cf
+                    Nothing -> getCabalFiles
+
+    pkgDescrs <- mapM (readGenericPackageDescription normal) (filesList cabalFiles)
 
     let flags = configFlags args
 
     let solver a f c p = case accurancyLevel args of
-                             TryHard      -> runDeepSolver False cabalFilePath a f c p
-                             TrySuperHard -> runDeepSolver True cabalFilePath a f c p
+                             TryHard      -> runDeepSolver False cabalFiles a f c p
+                             TrySuperHard -> runDeepSolver True cabalFiles a f c p
                              Normal       -> return $ runSolver a f c p
 
     case versionSpecification args of
         GhcVersion ghcVer -> do
-            let res = doesGhcVersionSupportPackage flags
-                                                   (ghcDatabase vabalCtx)
-                                                   pkgDescr
-                                                   ghcVer
+            let checkPkg p = doesGhcVersionSupportPackage flags
+                                                          (ghcDatabase vabalCtx)
+                                                          p
+                                                          ghcVer
+            let res = all checkPkg pkgDescrs
             unless res $
                 writeWarning "Warning: The specified ghc version probably won't work."
             return ghcVer
@@ -192,9 +210,9 @@ vabalFindGhcVersion args vabalCtx = do
             -- Restrict the database to only those ghcs with the required baseVersion
             let db' = filterBaseVersionIn (ghcDatabase vabalCtx) (thisVersion baseVer)
             let ctx' = vabalCtx { ghcDatabase = db' }
-            solver args flags ctx' pkgDescr
+            solver args flags ctx' pkgDescrs
 
-        NoSpecification -> solver args flags vabalCtx pkgDescr
+        NoSpecification -> solver args flags vabalCtx pkgDescrs
 
 
 vabalMain :: [String] -> VabalMainArguments -> IO ()
@@ -214,7 +232,7 @@ vabalMain cmd args = do
         let (commandName, commandArgs) = fromMaybe ("echo", []) $ uncons cmd
 
 
-        let procDesc = (proc commandName (commandArgs ++ extraOptions))
+        let procDesc = proc commandName (commandArgs ++ extraOptions)
         (_, _, _, procHandle) <- createProcess procDesc
         exitCode <- waitForProcess procHandle
         case exitCode of

@@ -68,8 +68,7 @@ downloadFakeGhcs manager baseDir = do
 
         if N.responseStatus response /= N.status200 then
             throwVabalErrorIO "Error while downloading metadata."
-        else do
-            unpackTar . Tar.checkSecurity $ Tar.read (N.responseBody response)
+        else unpackTar . Tar.checkSecurity $ Tar.read (N.responseBody response)
 
     where unpackTar (Tar.Fail e)    = either throwIO throwIO e
           unpackTar Tar.Done        = return ()
