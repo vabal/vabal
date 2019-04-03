@@ -196,14 +196,21 @@ vabalFindGhcVersion args vabalCtx = do
                              Normal       -> return $ runSolver a f c p
 
     case versionSpecification args of
-        GhcVersion ghcVer -> do
+        -- If the specified ghc version is known we can do some further checks
+        GhcVersion ghcVer | hasGhcVersion (ghcDatabase vabalCtx) ghcVer -> do
             let checkPkg p = doesGhcVersionSupportPackage flags
                                                           (ghcDatabase vabalCtx)
                                                           p
                                                           ghcVer
             let res = all checkPkg pkgDescrs
             unless res $
-                writeWarning "Warning: The specified ghc version probably won't work."
+                writeWarning "VabalWarning: The specified ghc version probably won't work."
+            return ghcVer
+
+        -- If the specified ghc version is not known, then we report the warning to the user
+        -- and simply use that ghc version without further checks.
+        GhcVersion ghcVer | otherwise -> do
+            writeWarning "VabalWarning: The specified ghc version is not known by vabal, try running `vabal update` or report this."
             return ghcVer
 
         BaseVersion baseVer -> do
