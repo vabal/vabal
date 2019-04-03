@@ -13,13 +13,14 @@ module Glob
     , getFilePathRootDirectory
     , parseFilePathGlob
     , parseFilePathGlobRel
-    , dispFilePathGlob
     ) where
 
 
 import Distribution.Parsec.Class
 import Distribution.Compat.CharParsing
 import Control.Applicative
+
+import Distribution.Pretty
 
 import           Data.List (stripPrefix)
 import           Data.Char (toUpper, isAsciiLower, isAsciiUpper)
@@ -175,14 +176,15 @@ instance Parsec FilePathGlob where
                   when (root == FilePathRelative) (fail "Unexpected relative path")
                   return (FilePathGlob root GlobDirTrailing)
 
-dispFilePathGlob :: FilePathGlob -> Disp.Doc
-dispFilePathGlob (FilePathGlob root pathglob) = dispFilePathRoot root Disp.<> dispFilePathGlobRel pathglob
+
+instance Pretty FilePathGlob where
+    pretty (FilePathGlob root pathglob) = pretty root Disp.<> pretty pathglob
 
 
 instance Parsec FilePathRoot where
     parsec = (char '/' $> FilePathRoot "/")
              <|> (char '~' *> char '/' $> FilePathHomeDir)
-             <|> parseDrive
+             <|> try parseDrive
              <|> return FilePathRelative
 
         where isAsciiAlpha c = isAsciiLower c || isAsciiUpper c
@@ -192,17 +194,17 @@ instance Parsec FilePathRoot where
                   _ <- char '/' <|> char '\\'
                   return (FilePathRoot (toUpper drive : ":\\"))
 
-dispFilePathRoot :: FilePathRoot -> Disp.Doc
-dispFilePathRoot  FilePathRelative    = Disp.empty
-dispFilePathRoot (FilePathRoot root)  = Disp.text root
-dispFilePathRoot FilePathHomeDir      = Disp.char '~' Disp.<> Disp.char '/'
+instance Pretty FilePathRoot where
+    pretty  FilePathRelative    = Disp.empty
+    pretty (FilePathRoot root)  = Disp.text root
+    pretty FilePathHomeDir      = Disp.char '~' Disp.<> Disp.char '/'
 
 
 instance Parsec FilePathGlobRel where
     parsec = parsePath
         where parsePath = do
                 globpieces <- parseGlob
-                try (asDir globpieces) <|> asTDir globpieces <|> asFile globpieces
+                try (asDir globpieces) <|> try (asTDir globpieces) <|> asFile globpieces
 
               asDir glob = do dirSep
                               GlobDir glob <$> parsePath
@@ -213,17 +215,17 @@ instance Parsec FilePathGlobRel where
 
               dirSep      = (char '/' $> ()) <|> notEscapingBackslash
 
-              notEscapingBackslash = do
-                  _ <- char '\\' *> notFollowedBy (satisfy isGlobEscapedChar)
-                  return ()
+              notEscapingBackslash =
+                  char '\\' *> notFollowedBy (satisfy isGlobEscapedChar)
 
-dispFilePathGlobRel :: FilePathGlobRel -> Disp.Doc
-dispFilePathGlobRel (GlobDir  glob pathglob) = dispGlob glob
-                      Disp.<> Disp.char '/'
-                      Disp.<> dispFilePathGlobRel pathglob
+instance Pretty FilePathGlobRel where
 
-dispFilePathGlobRel (GlobFile glob)          = dispGlob glob
-dispFilePathGlobRel  GlobDirTrailing         = Disp.empty
+    pretty (GlobDir glob pathglob) = dispGlob glob
+                                  Disp.<> Disp.char '/'
+                                  Disp.<> pretty pathglob
+
+    pretty (GlobFile glob)         = dispGlob glob
+    pretty  GlobDirTrailing        = Disp.empty
 
 
 dispGlob :: Glob -> Disp.Doc
