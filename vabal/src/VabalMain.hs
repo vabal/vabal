@@ -7,6 +7,7 @@ import VabalContext
 import GhcDatabase
 
 import Distribution.Types.GenericPackageDescription
+import Distribution.Types.Flag
 import Distribution.PackageDescription.Parsec
 import Distribution.Verbosity
 import Options.Applicative

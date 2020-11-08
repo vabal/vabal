@@ -32,12 +32,12 @@ library
   exposed-modules:     PackageSolver, GhcDatabase
   other-modules:       CompilerConditions
 
-  build-depends:       base       >=4.11   && <4.13,
-                       bytestring >=0.10.8 && <0.11,
-                       Cabal      >=2.4    && <2.5,
-                       cassava    >=0.5.1  && <0.6,
-                       containers >=0.5.11 && <0.7,
-                       vector     >=0.12.0 && <0.13
+  build-depends:       base        >=4.14 && <4.15,
+                       Cabal       >=3.2.0 && <3.3,
+                       bytestring  >=0.10.10 && <0.11,
+                       containers  >=0.6.2 && <0.7,
+                       cassava     >=0.5.2 && <0.6,
+                       vector      >=0.12.1 && <0.13
 
   ghc-options:         -Wall
   hs-source-dirs:      src

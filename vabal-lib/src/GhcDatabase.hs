@@ -28,7 +28,7 @@ module GhcDatabase
 ) where
 
 import           Distribution.Version
-import           Distribution.Parsec.Class
+import           Distribution.Parsec
 import           Data.Csv
 import           Data.Foldable (toList)
 

@@ -43,6 +43,7 @@ module CompilerConditions
 import Distribution.Version
 import Distribution.Compiler
 import Distribution.Types.CondTree
+import Distribution.Types.ConfVar
 import Distribution.Types.Condition
 import Distribution.Types.GenericPackageDescription
 

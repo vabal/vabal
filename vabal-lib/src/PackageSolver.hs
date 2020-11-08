@@ -17,6 +17,7 @@ import           Distribution.PackageDescription.Configuration
 import           Distribution.Types.PackageDescription
 import           Distribution.Types.ComponentRequestedSpec
 import           Distribution.Types.Library
+import           Distribution.Types.Flag
 import           Distribution.Types.Executable
 import           Distribution.Types.ForeignLib
 import           Distribution.Types.BuildInfo
@@ -38,10 +39,10 @@ makeCompilerInfo :: Version -> CompilerInfo
 makeCompilerInfo v = unknownCompilerInfo (CompilerId GHC v) NoAbiTag
 
 isBase :: Dependency -> Bool
-isBase (Dependency packageName _) = unPackageName packageName == "base"
+isBase (Dependency packageName _ _) = unPackageName packageName == "base"
 
 isCabalLib :: Dependency -> Bool
-isCabalLib (Dependency packageName _) = unPackageName packageName == "Cabal"
+isCabalLib (Dependency packageName _ _) = unPackageName packageName == "Cabal"
 
 extractConstraints :: (Dependency -> Bool) -> [Dependency] -> VersionRange
 extractConstraints predicate deps =
@@ -52,7 +53,7 @@ extractConstraints predicate deps =
 -- that helps us choose a base version that satisfies constraints imposed externally
 -- (i.e. by the user or by the ghc we are trying to use to configure the package)
 queryDependency :: VersionRange -> Dependency -> Bool
-queryDependency allowedBaseRange dep@(Dependency _ range)
+queryDependency allowedBaseRange dep@(Dependency _ range _)
    | isBase dep =  not . isNoVersion $ intersectVersionRanges range allowedBaseRange
    | otherwise  = True
 

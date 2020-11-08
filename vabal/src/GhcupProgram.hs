@@ -7,7 +7,7 @@ import Control.Exception (SomeException, handle)
 import System.FilePath
 import System.Environment (lookupEnv)
 
-import Distribution.Parsec.Class
+import Distribution.Parsec
 
 import Distribution.Version
 

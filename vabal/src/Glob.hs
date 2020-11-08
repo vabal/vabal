@@ -16,9 +16,10 @@ module Glob
     ) where
 
 
-import Distribution.Parsec.Class
+import Distribution.Parsec
 import Distribution.Compat.CharParsing
 import Control.Applicative
+import Data.Foldable (toList)
 
 import Distribution.Pretty
 
@@ -250,7 +251,7 @@ parseGlob = some parsePiece
     wildcard = char '*' $> WildCard
 
     union = between (char '{') (char '}') $
-              fmap Union (sepBy1 parseGlob (char ','))
+              fmap (Union . toList) (sepByNonEmpty parseGlob (char ','))
 
     literal = Literal `fmap` litchars1
 

@@ -2,8 +2,8 @@ module ArgumentParsers where
 
 import Options.Applicative
 import Distribution.Version
-import Distribution.Types.GenericPackageDescription
-import Distribution.Parsec.Class
+import Distribution.Types.Flag
+import Distribution.Parsec
 import Distribution.Parsec.FieldLineStream (fieldLineStreamFromString)
 
 data VersionSpecification = GhcVersion Version

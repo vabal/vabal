@@ -3,18 +3,18 @@ module Project where
     
 -- cabal.project file support
 
-import Distribution.Parsec.Parser
+import Distribution.Parsec
 import Distribution.FieldGrammar
 import Distribution.Compat.Lens
 import Distribution.Compat.CharParsing
-import Distribution.Parsec.ParseResult
+import Distribution.Fields.Parser
+import Distribution.Fields.ParseResult
 import Distribution.CabalSpecVersion
 
 import Data.Char (isSpace)
 
 import Distribution.Parsec.Newtypes
 import Distribution.Compat.Newtype
-import Distribution.Parsec.Class
 import Distribution.Pretty
 import qualified Data.ByteString as B
 
@@ -22,7 +22,7 @@ import qualified Text.PrettyPrint as PP
 
 newtype PackageLocation = PackageLocation String
 
-instance Newtype PackageLocation String where
+instance Newtype String PackageLocation where
     pack = PackageLocation
     unpack (PackageLocation s) = s
 
@@ -73,6 +73,6 @@ parseProject bs = do
     parsedFields <- either (Left . show) Right $ readFields bs
     let (fields, _) = partitionFields parsedFields
     -- let knownFields = fieldGrammarKnownFieldList projectGrammar
-    case runParseResult (parseFieldGrammar cabalSpecLatest fields projectGrammar) of
+    case runParseResult $ parseFieldGrammar cabalSpecLatest fields projectGrammar of
         (_, Left _)     -> Left "Error while parsing cabal.project file."
         (_, Right proj) -> return proj
